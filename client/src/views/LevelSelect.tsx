@@ -36,7 +36,7 @@ export function LevelSelect() {
       <div className="level-select__grid" role="list" aria-label="关卡列表">
         {Array.from({ length: TOTAL_LEVELS }).map((_, i) => {
           const levelNum = i + 1;
-          const isCleared = cleared.includes(i);
+          const isCleared = cleared.includes(levelNum);
           return (
             <button
               key={i}
@@ -48,7 +48,7 @@ export function LevelSelect() {
               ]
                 .filter(Boolean)
                 .join(" ")}
-              onClick={isHost ? () => adapter.selectLevel({ levelIndex: i }) : undefined}
+              onClick={isHost ? () => adapter.selectLevel({ levelIndex: levelNum }) : undefined}
               disabled={!isHost}
               aria-label={`第 ${levelNum} 关${isCleared ? "（已通关）" : ""}`}
             >
