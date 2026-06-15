@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg-0:#060a12;--bg-1:#0c1320;--bg-2:#121b2c;--bg-3:#1a2740;
+  --hairline:#2a3550;
+  --ink:#ECE6D8;--ink-mut:#9AA4B8;--ink-dim:#5C6680;
+  --brass:#C9A24B;--amber:#E8B14C;
+  --turn:#4FD1C5;--danger:#E0533D;--success:#7FB069;
+}
+html,body{height:100%;background:var(--bg-0);color:var(--ink);font-family:system-ui,sans-serif;}
+
+/* ── TOPBAR ── */
+.topbar{
+  height:44px;background:var(--bg-2);border-bottom:1px solid var(--hairline);
+  display:flex;align-items:center;justify-content:space-between;padding:0 18px;
+  font-size:12px;
+}
+.brand{font-weight:800;letter-spacing:2px;color:var(--brass);font-size:13px;}
+.topbar-mid{color:var(--ink-mut);}
+.topbar-right{display:flex;align-items:center;gap:14px;color:var(--ink-mut);}
+.hint-top{display:flex;gap:5px;align-items:center;}
+.hint-sq{width:13px;height:13px;border-radius:3px;}
+.timer-top{font-variant-numeric:tabular-nums;font-weight:700;color:var(--amber);font-size:14px;}
+
+/* ── MAIN LAYOUT: left | clock | right ── */
+.main{
+  display:grid;
+  grid-template-columns:220px 1fr 160px;
+  height:calc(100vh - 44px);
+  overflow:hidden;
+}
+
+/* ── LEFT PANEL ── */
+.left-panel{
+  background:var(--bg-1);border-right:1px solid var(--hairline);
+  padding:16px 14px;display:flex;flex-direction:column;gap:14px;overflow-y:auto;
+}
+.panel-block{background:var(--bg-2);border:1px solid var(--hairline);border-radius:10px;padding:12px 14px;}
+.block-title{font-size:9.5px;text-transform:uppercase;letter-spacing:2px;color:var(--ink-dim);margin-bottom:10px;}
+
+/* rules */
+.rule-row{display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px solid var(--hairline);}
+.rule-row:last-child{border-bottom:none;}
+.rule-icon{width:24px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0;}
+.rule-txt{font-size:11.5px;line-height:1.5;color:var(--ink);}
+.seg-ref{color:var(--amber);font-weight:700;}
+
+/* hand */
+.hand-rail{display:flex;gap:5px;justify-content:center;padding:4px 0;}
+
+/* ── CARD ── */
+.card{
+  display:inline-flex;align-items:center;justify-content:center;
+  border-radius:6px;border:1.5px solid;
+  font-variant-numeric:tabular-nums;font-weight:800;flex-shrink:0;
+}
+.card.sm{width:32px;height:46px;font-size:14px;}
+.card.md{width:38px;height:54px;font-size:17px;}
+.card.lg{width:34px;height:48px;font-size:15px;}  /* inside clock */
+.card.white{background:linear-gradient(160deg,#f0ede4,#d8d2c4);color:#1a1a1a;border-color:#b8b0a0;}
+.card.black{background:linear-gradient(160deg,#2e2724,#161210);color:#ECE6D8;border-color:#4a3d30;}
+.card.face-down{
+  background:linear-gradient(160deg,#1a2740,#0e1828);border-color:var(--brass);color:transparent;
+  position:relative;
+}
+.card.face-down::after{
+  content:'';display:block;position:absolute;
+  width:60%;height:70%;border-radius:3px;
+  border:1px solid rgba(201,162,75,.3);
+  background:repeating-linear-gradient(45deg,rgba(201,162,75,.05) 0,rgba(201,162,75,.05) 2px,transparent 2px,transparent 5px);
+}
+.card.blind{background:linear-gradient(160deg,#1a2740,#0e1828);border-color:rgba(201,162,75,.4);color:rgba(201,162,75,.55);font-size:18px;}
+.card.revealed{border-color:var(--amber);box-shadow:0 0 10px rgba(232,177,76,.4);}
+
+/* ── CLOCK AREA ── */
+.clock-area{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:8px;}
+.clock-wrap{position:relative;width:460px;height:460px;flex-shrink:0;}
+.clock-ring{
+  width:460px;height:460px;border-radius:50%;position:absolute;top:0;left:0;
+  border:2.5px solid var(--hairline);
+  background:radial-gradient(circle at 50% 50%,#121b2c 52%,#0c1320 80%);
+}
+.clock-inner{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:88px;height:88px;border-radius:50%;
+  border:2px solid var(--brass);background:var(--bg-3);
+  display:flex;align-items:center;justify-content:center;
+}
+.center-val{font-size:24px;font-weight:800;color:var(--amber);font-variant-numeric:tabular-nums;}
+
+svg.lines{position:absolute;top:0;left:0;width:460px;height:460px;pointer-events:none;}
+
+/* segment zone: absolutely positioned */
+.seg-zone{position:absolute;display:flex;flex-direction:column;align-items:center;gap:4px;}
+.seg-lbl{font-size:11px;font-weight:700;color:var(--brass);}
+.seg-cards{display:flex;gap:4px;flex-wrap:wrap;justify-content:center;max-width:90px;}
+.seg-cnt{font-size:10px;font-weight:700;color:var(--amber);background:rgba(201,162,75,.12);border:1px solid rgba(201,162,75,.25);padding:1px 7px;border-radius:999px;}
+.seg-cnt.empty{color:var(--ink-dim);background:none;border-color:transparent;}
+.empty-slot{width:34px;height:48px;border-radius:6px;border:1.5px dashed rgba(42,53,80,.9);}
+
+.cbadge{font-size:9px;font-weight:700;padding:2px 6px;border-radius:5px;border:1px solid;white-space:nowrap;}
+.cb-o1{background:rgba(201,162,75,.18);color:var(--amber);border-color:var(--brass);}
+.cb-o2{background:rgba(79,209,197,.13);color:var(--turn);border-color:var(--turn);}
+.cb-col{background:rgba(127,176,105,.12);color:var(--success);border-color:var(--success);}
+
+/* turn badge */
+.turn-badge{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:7px 20px;border-radius:999px;
+  background:rgba(79,209,197,.1);border:1.5px solid var(--turn);
+  color:var(--turn);font-size:13px;font-weight:700;
+}
+
+/* ── RIGHT PANEL ── */
+.right-panel{
+  background:var(--bg-1);border-left:1px solid var(--hairline);
+  padding:12px 10px;display:flex;flex-direction:column;gap:10px;
+}
+.rp-block{background:var(--bg-2);border:1px solid var(--hairline);border-radius:9px;padding:10px 12px;}
+.rp-title{font-size:9px;text-transform:uppercase;letter-spacing:2px;color:var(--ink-dim);margin-bottom:7px;}
+.timer-big{font-size:26px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--amber);line-height:1;}
+.stat-row{font-size:11px;color:var(--ink-mut);margin-top:4px;line-height:1.6;}
+.hint-row{display:flex;gap:6px;margin-top:2px;}
+.hint-gem{width:18px;height:18px;border-radius:4px;}
+
+/* ── DISCUSSION PREVIEW (shown at bottom as "before game" example) ── */
+.disc-preview{
+  margin-top:20px;padding:16px 20px;
+  background:var(--bg-1);border:1px solid var(--hairline);border-radius:12px;
+}
+.disc-title{font-size:11px;text-transform:uppercase;letter-spacing:2px;color:var(--ink-mut);margin-bottom:12px;}
+.card-legend{display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap;}
+.cl-item{text-align:center;}
+.cl-label{font-size:10px;color:var(--ink-dim);margin-bottom:5px;}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <span class="brand">◷ CARD GAME</span>
+  <span class="topbar-mid">第 3 关 · 出牌阶段</span>
+  <div class="topbar-right">
+    <div class="hint-top">
+      <div class="hint-sq" style="background:var(--amber);box-shadow:0 0 5px rgba(232,177,76,.4);"></div>
+      <div class="hint-sq" style="background:var(--amber);box-shadow:0 0 5px rgba(232,177,76,.4);"></div>
+      <div class="hint-sq" style="background:var(--bg-3);border:1px solid var(--hairline);"></div>
+      <span style="font-size:11px;margin-left:4px;">2/3</span>
+    </div>
+    <span class="timer-top">0:07</span>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- ══ LEFT ══ -->
+  <div class="left-panel">
+
+    <!-- 规则 -->
+    <div class="panel-block">
+      <div class="block-title">第 3 关 · 本关规则</div>
+      <div class="rule-row">
+        <div class="rule-icon" style="background:rgba(201,162,75,.18);color:var(--amber);">①</div>
+        <div class="rule-txt">第 <strong>1</strong> 张牌必须落入 <span class="seg-ref">区段 3</span></div>
+      </div>
+      <div class="rule-row">
+        <div class="rule-icon" style="background:rgba(79,209,197,.13);color:var(--turn);">②</div>
+        <div class="rule-txt">第 <strong>2</strong> 张牌必须落入 <span class="seg-ref">区段 2</span></div>
+      </div>
+      <div class="rule-row">
+        <div class="rule-icon" style="background:rgba(127,176,105,.12);color:var(--success);font-size:10px;">⚫⚪</div>
+        <div class="rule-txt"><span class="seg-ref">区段 4</span> 恰好各一黑 + 一白</div>
+      </div>
+    </div>
+
+    <!-- 手牌 -->
+    <div class="panel-block">
+      <div class="block-title">我的手牌</div>
+      <div class="hand-rail">
+        <div class="card sm blind">?</div>
+        <div class="card sm white">7</div>
+        <div class="card sm black">3</div>
+        <div class="card sm white">11</div>
+        <div class="card sm black">9</div>
+        <div class="card sm blind">?</div>
+      </div>
+      <div style="font-size:10px;color:var(--ink-dim);text-align:center;margin-top:6px;">两端盲牌 · 中间 4 张可见</div>
+    </div>
+
+  </div>
+
+  <!-- ══ CLOCK CENTER ══ -->
+  <div class="clock-area">
+    <div class="clock-wrap">
+      <div class="clock-ring"></div>
+
+      <svg class="lines" viewBox="0 0 460 460">
+        <!-- 高亮扇区 S2 右上 -->
+        <path d="M230,230 L230,22 A208,208 0 0,1 410,126" fill="rgba(79,209,197,.04)"/>
+        <!-- 高亮扇区 S3 右下 -->
+        <path d="M230,230 L410,334 A208,208 0 0,1 230,438" fill="rgba(201,162,75,.05)"/>
+        <!-- 高亮扇区 S4 底 -->
+        <path d="M230,230 L230,438 A208,208 0 0,1 50,334" fill="rgba(127,176,105,.04)"/>
+        <!-- 6 dividers -->
+        <line x1="230" y1="230" x2="230" y2="22"   stroke="#2a3550" stroke-width="1.5"/>
+        <line x1="230" y1="230" x2="410" y2="126"  stroke="#2a3550" stroke-width="1.5"/>
+        <line x1="230" y1="230" x2="410" y2="334"  stroke="#2a3550" stroke-width="1.5"/>
+        <line x1="230" y1="230" x2="230" y2="438"  stroke="#2a3550" stroke-width="1.5"/>
+        <line x1="230" y1="230" x2="50"  y2="334"  stroke="#2a3550" stroke-width="1.5"/>
+        <line x1="230" y1="230" x2="50"  y2="126"  stroke="#2a3550" stroke-width="1.5"/>
+        <!-- outer ring accent -->
+        <circle cx="230" cy="230" r="207" fill="none" stroke="#C9A24B" stroke-width="1" opacity=".25"/>
+      </svg>
+
+      <!-- center -->
+      <div class="clock-inner"><span class="center-val">∞</span></div>
+
+      <!-- S1 top: 1 face-down -->
+      <div class="seg-zone" style="top:10px;left:50%;transform:translateX(-50%);">
+        <div class="seg-lbl">S1</div>
+        <div class="seg-cards"><div class="card lg face-down"></div></div>
+        <div class="seg-cnt">1 张</div>
+      </div>
+
+      <!-- S2 top-right: 1 face-down + badge -->
+      <div class="seg-zone" style="top:44px;right:34px;align-items:flex-end;">
+        <div class="seg-lbl">S2</div>
+        <div class="seg-cards"><div class="card lg face-down"></div></div>
+        <div class="seg-cnt">1 张</div>
+        <span class="cbadge cb-o2">② 第2张</span>
+      </div>
+
+      <!-- S3 bottom-right: 1 revealed black 5 + badge -->
+      <div class="seg-zone" style="bottom:44px;right:34px;align-items:flex-end;">
+        <span class="cbadge cb-o1">① 第1张 ✓</span>
+        <div class="seg-cards">
+          <div class="card lg black revealed">5</div>
+        </div>
+        <div class="seg-cnt">1 张</div>
+        <div class="seg-lbl">S3</div>
+      </div>
+
+      <!-- S4 bottom: 2 cards (black 4 + white 8) + badge -->
+      <div class="seg-zone" style="bottom:10px;left:50%;transform:translateX(-50%);">
+        <div class="seg-cards">
+          <div class="card lg black">4</div>
+          <div class="card lg white">8</div>
+        </div>
+        <div class="seg-cnt">2 张</div>
+        <span class="cbadge cb-col" style="font-size:8.5px;">⚫⚪ 各一 ✓</span>
+        <div class="seg-lbl">S4</div>
+      </div>
+
+      <!-- S5 bottom-left: 2 face-down -->
+      <div class="seg-zone" style="bottom:44px;left:34px;align-items:flex-start;">
+        <div class="seg-cards">
+          <div class="card lg face-down"></div>
+          <div class="card lg face-down"></div>
+        </div>
+        <div class="seg-cnt">2 张</div>
+        <div class="seg-lbl">S5</div>
+      </div>
+
+      <!-- S6 top-left: empty -->
+      <div class="seg-zone" style="top:44px;left:34px;align-items:flex-start;">
+        <div class="seg-lbl">S6</div>
+        <div class="seg-cards"><div class="empty-slot"></div></div>
+        <div class="seg-cnt empty">空</div>
+      </div>
+    </div>
+
+    <!-- turn badge -->
+    <div class="turn-badge">◉ 轮到你出牌</div>
+  </div>
+
+  <!-- ══ RIGHT ══ -->
+  <div class="right-panel">
+    <div class="rp-block">
+      <div class="rp-title">回合倒计时</div>
+      <div class="timer-big">0:07</div>
+      <div class="stat-row">
+        已出 你 4 · 对方 3<br>
+        还剩 5 张
+      </div>
+    </div>
+    <div class="rp-block">
+      <div class="rp-title">提示标记</div>
+      <div class="hint-row">
+        <div class="hint-gem" style="background:var(--amber);box-shadow:0 0 6px rgba(232,177,76,.4);"></div>
+        <div class="hint-gem" style="background:var(--amber);box-shadow:0 0 6px rgba(232,177,76,.4);"></div>
+        <div class="hint-gem" style="background:var(--bg-3);border:1px solid var(--hairline);"></div>
+      </div>
+      <div style="font-size:10px;color:var(--ink-mut);margin-top:5px;">2 / 3 剩余</div>
+    </div>
+    <div class="rp-block" style="border-color:rgba(79,209,197,.25);">
+      <div class="rp-title">对方</div>
+      <div style="font-size:12px;color:var(--ink-mut);">Alice</div>
+      <div style="font-size:11px;color:var(--ink-dim);margin-top:3px;">等待中…</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══ DISCUSSION PAGE CARD LEGEND (separate note) ══ -->
+<div style="padding:16px 24px;background:var(--bg-0);">
+  <div class="disc-preview">
+    <div class="disc-title">讨论阶段 — 卡牌说明（进入讨论时显示，出牌页不再重复）</div>
+    <div class="card-legend">
+      <div class="cl-item"><div class="cl-label">白牌</div><div class="card md white">7</div></div>
+      <div class="cl-item"><div class="cl-label">白牌大数</div><div class="card md white">12</div></div>
+      <div class="cl-item"><div class="cl-label">黑牌</div><div class="card md black">3</div></div>
+      <div class="cl-item"><div class="cl-label">黑牌</div><div class="card md black">9</div></div>
+      <div style="width:1px;height:54px;background:var(--hairline);align-self:flex-end;margin:0 4px;"></div>
+      <div class="cl-item"><div class="cl-label">手牌盲牌</div><div class="card md blind">?</div></div>
+      <div class="cl-item"><div class="cl-label">桌面暗置</div><div class="card md face-down"></div></div>
+      <div class="cl-item"><div class="cl-label">提示翻开</div><div class="card md black revealed">5</div></div>
+    </div>
+    <div style="font-size:11px;color:var(--ink-dim);margin-top:10px;">
+      牌库共 24 张：白色 1–12 + 黑色 1–12。每局随机发 12 张，你和队友各 6 张。
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

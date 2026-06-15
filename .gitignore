@@ -1,0 +1,9 @@
+node_modules/
+dist/
+client/dist/
+server/dist/
+shared/dist/
+data/
+.env
+.env.*
+npm-debug.log*

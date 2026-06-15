@@ -1,0 +1,21 @@
+{
+  "name": "take-time",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "client",
+    "server",
+    "shared"
+  ],
+  "scripts": {
+    "build": "npm run build -w @take-time/shared && npm run build -w @take-time/client && npm run build -w @take-time/server",
+    "dev": "npm run dev -w @take-time/server",
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run build -w @take-time/shared && npm run typecheck -w @take-time/client && npm run typecheck -w @take-time/server && npm run typecheck -w @take-time/shared",
+    "start": "node server/dist/index.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

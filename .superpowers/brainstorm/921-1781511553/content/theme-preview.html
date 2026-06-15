@@ -1,0 +1,131 @@
+<style>
+:root {
+  --bg-0: #060a12; --bg-1: #0c1320; --bg-2: #121b2c; --bg-3: #1a2740;
+  --hairline: #2a3550;
+  --ink: #ECE6D8; --ink-mut: #9AA4B8; --ink-dim: #5C6680;
+  --brass: #C9A24B; --amber: #E8B14C;
+  --brass-glow: rgba(232,177,76,.35);
+  --turn: #4FD1C5; --danger: #E0533D; --success: #7FB069; --warn: #E8B14C;
+}
+
+body { background: var(--bg-0); color: var(--ink); font-family: system-ui, sans-serif; margin: 0; padding: 24px; }
+
+.section { margin-bottom: 32px; }
+.section-title { color: var(--ink-mut); font-size: 11px; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 12px; }
+
+.swatches { display: flex; gap: 8px; flex-wrap: wrap; }
+.swatch { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.swatch-box { width: 72px; height: 52px; border-radius: 8px; border: 1px solid var(--hairline); }
+.swatch-name { font-size: 10px; color: var(--ink-mut); font-family: monospace; }
+.swatch-hex { font-size: 10px; color: var(--ink-dim); font-family: monospace; }
+
+.demo-card {
+  background: var(--bg-2);
+  border: 1px solid var(--hairline);
+  border-radius: 14px;
+  padding: 20px 24px;
+  max-width: 360px;
+  box-shadow: 0 8px 28px rgba(0,0,0,.45);
+}
+.demo-brand {
+  font-size: 13px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase;
+  color: var(--brass); margin-bottom: 4px;
+}
+.demo-title { font-size: 24px; font-weight: 600; color: var(--ink); margin-bottom: 8px; }
+.demo-sub { font-size: 13px; color: var(--ink-mut); margin-bottom: 20px; }
+.demo-input {
+  width: 100%; box-sizing: border-box; padding: 10px 14px;
+  background: var(--bg-3); border: 1px solid var(--hairline);
+  border-radius: 8px; color: var(--ink); font-size: 14px; outline: none;
+  margin-bottom: 12px;
+}
+.demo-input:focus { border-color: var(--brass); }
+.demo-btn {
+  width: 100%; padding: 11px;
+  background: linear-gradient(135deg, #D9B25E, #A8842F);
+  border: none; border-radius: 8px; color: #0c1320;
+  font-weight: 700; font-size: 14px; cursor: pointer; letter-spacing: .5px;
+}
+
+.badge-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.badge {
+  padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 600;
+  border: 1px solid;
+}
+.badge-turn { color: var(--turn); border-color: var(--turn); background: rgba(79,209,197,.1); }
+.badge-danger { color: var(--danger); border-color: var(--danger); background: rgba(224,83,61,.1); }
+.badge-success { color: var(--success); border-color: var(--success); background: rgba(127,176,105,.1); }
+.badge-warn { color: var(--warn); border-color: var(--warn); background: rgba(232,177,76,.1); }
+.badge-brass { color: var(--brass); border-color: var(--brass); background: rgba(201,162,75,.1); }
+
+.timer {
+  font-family: 'Geist Mono', 'JetBrains Mono', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 36px; font-weight: 700;
+  color: var(--amber);
+  text-shadow: 0 0 18px var(--brass-glow);
+}
+.timer.danger { color: var(--danger); text-shadow: 0 0 18px rgba(224,83,61,.4); }
+
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+</style>
+
+<h2>Take Time — 「午夜天文台」主题预览</h2>
+<p class="subtitle">计划中的 CSS Token 渲染效果。确认视觉方向后我们进入开发。</p>
+
+<div class="split">
+  <div>
+    <div class="section">
+      <div class="section-title">背景层次</div>
+      <div class="swatches">
+        <div class="swatch"><div class="swatch-box" style="background:#060a12"></div><div class="swatch-name">--bg-0</div><div class="swatch-hex">#060a12</div></div>
+        <div class="swatch"><div class="swatch-box" style="background:#0c1320"></div><div class="swatch-name">--bg-1</div><div class="swatch-hex">#0c1320</div></div>
+        <div class="swatch"><div class="swatch-box" style="background:#121b2c"></div><div class="swatch-name">--bg-2</div><div class="swatch-hex">#121b2c</div></div>
+        <div class="swatch"><div class="swatch-box" style="background:#1a2740"></div><div class="swatch-name">--bg-3</div><div class="swatch-hex">#1a2740</div></div>
+        <div class="swatch"><div class="swatch-box" style="background:#2a3550"></div><div class="swatch-name">--hairline</div><div class="swatch-hex">#2a3550</div></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">黄铜 / 琥珀 强调</div>
+      <div class="swatches">
+        <div class="swatch"><div class="swatch-box" style="background:#C9A24B"></div><div class="swatch-name">--brass</div><div class="swatch-hex">#C9A24B</div></div>
+        <div class="swatch"><div class="swatch-box" style="background:#E8B14C"></div><div class="swatch-name">--amber</div><div class="swatch-hex">#E8B14C</div></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">功能色</div>
+      <div class="badge-row">
+        <span class="badge badge-turn">轮到你</span>
+        <span class="badge badge-danger">超时 / 失败</span>
+        <span class="badge badge-success">通关</span>
+        <span class="badge badge-warn">即将超时</span>
+        <span class="badge badge-brass">房主</span>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">倒计时（tabular-nums）</div>
+      <div class="timer">04:37</div>
+      <div class="timer danger" style="margin-top:8px">00:02</div>
+    </div>
+  </div>
+
+  <div>
+    <div class="section">
+      <div class="section-title">登录页卡片预览</div>
+      <div class="demo-card">
+        <div class="demo-brand">◷ Take Time</div>
+        <div class="demo-title">午夜天文台</div>
+        <div class="demo-sub">双人合作时钟谜题</div>
+        <input class="demo-input" placeholder="在此输入昵称…" />
+        <button class="demo-btn">进入房间</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr style="border-color: var(--hairline); margin: 24px 0;">
+
+<p class="subtitle" style="text-align:center">这是计划中定义的调色盘和视觉方向。是否满意？还是想调整某些颜色或风格？</p>

@@ -1,0 +1,189 @@
+<style>
+:root {
+  --bg-0:#060a12;--bg-1:#0c1320;--bg-2:#121b2c;--bg-3:#1a2740;
+  --hairline:#2a3550;
+  --ink:#ECE6D8;--ink-mut:#9AA4B8;--ink-dim:#5C6680;
+  --brass:#C9A24B;--amber:#E8B14C;
+  --turn:#4FD1C5;--danger:#E0533D;--success:#7FB069;--warn:#E8B14C;
+  --r-card:14px;
+}
+body{background:var(--bg-0);color:var(--ink);font-family:system-ui,sans-serif;margin:0;padding:24px 32px;}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-top:24px;}
+.panel{background:var(--bg-2);border:1px solid var(--hairline);border-radius:var(--r-card);padding:20px 22px;}
+.panel-title{font-size:11px;text-transform:uppercase;letter-spacing:2px;color:var(--ink-mut);margin-bottom:14px;}
+.tag{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;margin-bottom:10px;}
+.tag-easy{background:rgba(127,176,105,.15);color:var(--success);border:1px solid var(--success);}
+.tag-hard{background:rgba(224,83,61,.15);color:var(--danger);border:1px solid var(--danger);}
+
+/* ── 规则面板 ── */
+.rule-item{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--hairline);}
+.rule-item:last-child{border-bottom:none;}
+.rule-icon{flex-shrink:0;width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;}
+.rule-icon.order{background:rgba(201,162,75,.2);color:var(--brass);}
+.rule-icon.colors{background:rgba(79,209,197,.12);color:var(--turn);}
+.rule-icon.sum{background:rgba(127,176,105,.12);color:var(--success);}
+.rule-icon.count{background:rgba(232,177,76,.12);color:var(--warn);}
+.rule-text{font-size:13px;line-height:1.6;color:var(--ink);}
+.rule-segment{color:var(--amber);font-weight:700;}
+
+/* ── 时钟盘 ── */
+.clock-wrap{position:relative;width:220px;height:220px;margin:0 auto 16px;}
+.clock-bg{width:220px;height:220px;border-radius:50%;border:2px solid var(--hairline);background:radial-gradient(circle at 50% 50%, #121b2c 60%, #0c1320);}
+.center-cap{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:18px;font-weight:700;color:var(--amber);font-variant-numeric:tabular-nums;}
+
+/* 6 个扇区标签 + badge */
+.seg{position:absolute;display:flex;flex-direction:column;align-items:center;gap:3px;}
+.seg-label{font-size:11px;font-weight:700;color:var(--brass);font-variant-numeric:tabular-nums;}
+.seg-badge{font-size:10px;font-weight:700;padding:2px 6px;border-radius:6px;white-space:nowrap;}
+.badge-order1{background:rgba(201,162,75,.25);color:var(--amber);border:1px solid var(--brass);}
+.badge-order2{background:rgba(79,209,197,.18);color:var(--turn);border:1px solid var(--turn);}
+.badge-color{background:rgba(127,176,105,.15);color:var(--success);border:1px solid var(--success);}
+
+/* 放射状区段线 */
+svg.clock-lines{position:absolute;top:0;left:0;width:220px;height:220px;pointer-events:none;}
+
+.legend{margin-top:12px;}
+.legend-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px;color:var(--ink-mut);}
+.legend-dot{width:10px;height:10px;border-radius:3px;flex-shrink:0;}
+</style>
+
+<h2>关卡规则展示 + 时钟盘区段标注</h2>
+<p class="subtitle">以第 3 关为例，展示两种新 UI 需求的视觉方案</p>
+
+<div class="grid">
+
+  <!-- ── 左：关卡规则面板 ── -->
+  <div>
+    <div class="panel-title">方案 A — 讨论阶段规则面板（常驻可见）</div>
+    <div class="panel">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+        <span style="font-size:15px;font-weight:700;color:var(--amber)">第 3 关</span>
+        <span class="tag tag-hard">★★★★</span>
+        <span style="font-size:12px;color:var(--ink-mut)">出牌顺序 + 颜色约束</span>
+      </div>
+
+      <div class="rule-item">
+        <div class="rule-icon order">①</div>
+        <div class="rule-text">
+          <strong>第 1 张</strong>出的牌（抢到先手者）必须落入
+          <span class="rule-segment">区段 3</span>
+        </div>
+      </div>
+      <div class="rule-item">
+        <div class="rule-icon order" style="background:rgba(79,209,197,.15);color:var(--turn);">②</div>
+        <div class="rule-text">
+          <strong>第 2 张</strong>出的牌（后手）必须落入
+          <span class="rule-segment">区段 2</span>
+        </div>
+      </div>
+      <div class="rule-item">
+        <div class="rule-icon colors">⚫⚪</div>
+        <div class="rule-text">
+          <span class="rule-segment">区段 4</span> 必须恰好 <strong>1 张黑牌 + 1 张白牌</strong>（共 2 张）
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-title" style="margin-top:20px;">方案 B — 进关前弹出「规则确认」卡片</div>
+    <div class="panel" style="border-color:var(--brass);box-shadow:0 0 0 1px rgba(201,162,75,.2);">
+      <div style="color:var(--amber);font-size:13px;font-weight:700;margin-bottom:8px;">⚠ 本关特殊规则，请记住</div>
+      <div class="rule-item">
+        <div class="rule-icon order">①</div>
+        <div class="rule-text">第 1 张牌 → <span class="rule-segment">区段 3</span></div>
+      </div>
+      <div class="rule-item">
+        <div class="rule-icon order" style="background:rgba(79,209,197,.15);color:var(--turn);">②</div>
+        <div class="rule-text">第 2 张牌 → <span class="rule-segment">区段 2</span></div>
+      </div>
+      <div class="rule-item">
+        <div class="rule-icon colors">⚫⚪</div>
+        <div class="rule-text"><span class="rule-segment">区段 4</span> 各一黑一白</div>
+      </div>
+      <button style="margin-top:14px;width:100%;padding:10px;background:linear-gradient(135deg,#D9B25E,#A8842F);border:none;border-radius:8px;color:#0c1320;font-weight:700;font-size:13px;cursor:pointer;">
+        已了解，开始讨论 →
+      </button>
+    </div>
+  </div>
+
+  <!-- ── 右：时钟盘标注 ── -->
+  <div>
+    <div class="panel-title">时钟盘区段标注（出牌阶段）</div>
+    <div class="panel" style="text-align:center;">
+      <div class="clock-wrap">
+        <!-- 外圆 -->
+        <div class="clock-bg"></div>
+        <!-- 放射线 -->
+        <svg class="clock-lines" viewBox="0 0 220 220">
+          <!-- 6 条从中心到边的分割线（每 60°）-->
+          <line x1="110" y1="110" x2="110" y2="6"  stroke="#2a3550" stroke-width="1.5"/>
+          <line x1="110" y1="110" x2="206" y2="55" stroke="#2a3550" stroke-width="1.5"/>
+          <line x1="110" y1="110" x2="206" y2="165" stroke="#2a3550" stroke-width="1.5"/>
+          <line x1="110" y1="110" x2="110" y2="214" stroke="#2a3550" stroke-width="1.5"/>
+          <line x1="110" y1="110" x2="14"  y2="165" stroke="#2a3550" stroke-width="1.5"/>
+          <line x1="110" y1="110" x2="14"  y2="55"  stroke="#2a3550" stroke-width="1.5"/>
+          <!-- 高亮扇区（区段3，top）用弧线标出 -->
+          <path d="M110,110 L110,6 A104,104 0 0,1 200.1,57" fill="rgba(201,162,75,.08)" stroke="none"/>
+          <!-- 区段3（S3）高亮弧 — 顺时针第3段，约120°~180° -->
+          <path d="M110,110 L200.1,163 A104,104 0 0,1 110,214" fill="rgba(79,209,197,.06)" stroke="none"/>
+          <!-- 区段4（S4）高亮弧 -->
+          <path d="M110,110 L110,214 A104,104 0 0,1 19.9,163" fill="rgba(127,176,105,.07)" stroke="none"/>
+        </svg>
+        <!-- 中心值 -->
+        <div class="center-cap">∞</div>
+
+        <!-- S1 — 12点方向，无特殊标注 -->
+        <div class="seg" style="top:6px;left:50%;transform:translateX(-50%)">
+          <span class="seg-label">S1</span>
+        </div>
+        <!-- S2 — 右上，有「②」标注 -->
+        <div class="seg" style="top:34px;right:12px;">
+          <span class="seg-label">S2</span>
+          <span class="seg-badge badge-order2">② 第2张</span>
+        </div>
+        <!-- S3 — 右下，有「①」标注 -->
+        <div class="seg" style="bottom:34px;right:12px;">
+          <span class="seg-label">S3</span>
+          <span class="seg-badge badge-order1">① 第1张</span>
+        </div>
+        <!-- S4 — 6点方向，有颜色标注 -->
+        <div class="seg" style="bottom:6px;left:50%;transform:translateX(-50%)">
+          <span class="seg-label">S4</span>
+          <span class="seg-badge badge-color">⚫⚪ 各一</span>
+        </div>
+        <!-- S5 — 左下，无标注 -->
+        <div class="seg" style="bottom:34px;left:12px;">
+          <span class="seg-label">S5</span>
+        </div>
+        <!-- S6 — 左上，无标注 -->
+        <div class="seg" style="top:34px;left:12px;">
+          <span class="seg-label">S6</span>
+        </div>
+      </div>
+
+      <div class="legend" style="text-align:left;">
+        <div class="legend-row">
+          <div class="legend-dot" style="background:rgba(201,162,75,.4);"></div>
+          <span>黄铜 = 第 1 张牌必须落此区段</span>
+        </div>
+        <div class="legend-row">
+          <div class="legend-dot" style="background:rgba(79,209,197,.4);"></div>
+          <span>青色 = 第 2 张牌必须落此区段</span>
+        </div>
+        <div class="legend-row">
+          <div class="legend-dot" style="background:rgba(127,176,105,.4);"></div>
+          <span>绿色 = 颜色/张数约束</span>
+        </div>
+        <div class="legend-row">
+          <div class="legend-dot" style="background:var(--hairline);"></div>
+          <span>无标注 = 无该区段条件（自由放置）</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<hr style="border-color:var(--hairline);margin:28px 0 16px;">
+<p class="subtitle" style="text-align:center;">
+  规则面板：方案 A（讨论阶段常驻）还是方案 B（进关前弹窗确认）？时钟标注这样够清晰吗？
+</p>

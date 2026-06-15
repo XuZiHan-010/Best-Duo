@@ -1,0 +1,173 @@
+<style>
+  .q-title { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+  .q-sub   { font-size: 13px; color: #9AA4B8; margin-bottom: 24px; }
+
+  .cards { display: flex; gap: 16px; flex-wrap: wrap; }
+  .card  { flex: 1; min-width: 260px; background: #121b2c; border: 1.5px solid #2a3550;
+            border-radius: 14px; padding: 16px; cursor: pointer;
+            transition: border-color 0.15s; }
+  .card:hover { border-color: #C9A24B55; }
+  .card.selected { border-color: #C9A24B; box-shadow: 0 0 0 2px rgba(201,162,75,.25); }
+  .card h3 { font-size: 14px; font-weight: 700; color: #ECE6D8; margin-bottom: 4px; }
+  .card .card-sub { font-size: 12px; color: #9AA4B8; margin-bottom: 12px; }
+
+  /* 线框模拟 */
+  .frame { background: #0c1320; border-radius: 8px; overflow: hidden; font-size: 11px; }
+  .frame-topbar { background: #121b2c; border-bottom: 1px solid #2a3550;
+                  padding: 5px 10px; color: #9AA4B8; display: flex; gap: 8px; align-items: center; }
+  .frame-topbar .brand { color: #C9A24B; font-weight: 700; }
+  .frame-topbar .timer { margin-left: auto; color: #ECE6D8; }
+  .frame-body { display: flex; gap: 0; }
+
+  /* 选项A：左钟右聊 */
+  .opt-a .frame-body { flex-direction: row; }
+  .opt-a .clock-col { flex: 3; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+  .opt-a .chat-col  { flex: 2; border-left: 1px solid #2a3550; padding: 12px; display: flex; flex-direction: column; gap: 6px; }
+
+  /* 选项B：右侧窄聊，下方条件栏 */
+  .opt-b .frame-body { flex-direction: column; }
+  .opt-b .top-row { display: flex; }
+  .opt-b .clock-col { flex: 3; padding: 12px; }
+  .opt-b .chat-col  { flex: 2; border-left: 1px solid #2a3550; padding: 12px; }
+  .opt-b .conditions-bar { border-top: 1px solid #2a3550; padding: 8px 12px; }
+
+  /* 选项C：全宽钟面 上下 */
+  .opt-c .frame-body { flex-direction: column; }
+  .opt-c .clock-row { padding: 12px; }
+  .opt-c .bottom-row { display: flex; border-top: 1px solid #2a3550; }
+  .opt-c .chat-col  { flex: 1; padding: 10px 12px; }
+  .opt-c .cond-col  { flex: 1; border-left: 1px solid #2a3550; padding: 10px 12px; }
+
+  /* 共用线框元素 */
+  .clock-ring { width: 80px; height: 80px; border-radius: 50%; border: 2px solid #C9A24B44;
+                margin: 0 auto; display: flex; align-items: center; justify-content: center;
+                background: radial-gradient(circle, #1a2740 60%, #0c1320 100%);
+                color: #C9A24B; font-size: 10px; }
+  .cond-tag { display: inline-block; background: #1a2740; border: 1px solid #2a3550;
+              border-radius: 4px; padding: 2px 6px; color: #9AA4B8; font-size: 10px; margin: 2px; }
+  .chat-msg { font-size: 10px; color: #9AA4B8; padding: 3px 0; }
+  .chat-msg .nick { color: #C9A24B; }
+  .chat-input { background: #0c1320; border: 1px solid #2a3550; border-radius: 4px;
+                padding: 4px 8px; color: #5C6680; font-size: 10px; margin-top: auto; }
+  .label-sm { font-size: 10px; color: #5C6680; margin-bottom: 4px; }
+  .rules-text { font-size: 10px; color: #9AA4B8; line-height: 1.6; }
+  .host-btn { background: #C9A24B22; border: 1px solid #C9A24B55; border-radius: 6px;
+              padding: 4px 10px; color: #C9A24B; font-size: 10px; margin-top: 6px; display: inline-block; }
+</style>
+
+<div class="q-title">讨论页布局 — 选哪种方案？</div>
+<div class="q-sub">三种方案的信息优先级不同，点击选择你偏好的。</div>
+
+<div class="cards">
+
+  <!-- 选项 A -->
+  <div class="card opt-a" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>左钟右聊 · 两栏平铺</h3>
+      <div class="card-sub">钟面 60% · 聊天 40%，条件清单嵌入钟面下方</div>
+      <div class="frame">
+        <div class="frame-topbar">
+          <span class="brand">◷</span>
+          <span>第 3 关 · 讨论中</span>
+          <span class="timer">⏱ 04:37</span>
+        </div>
+        <div class="frame-body">
+          <div class="clock-col">
+            <div class="label-sm">钟面预览</div>
+            <div class="clock-ring">∞</div>
+            <div style="margin-top:6px">
+              <div class="label-sm">本关条件</div>
+              <span class="cond-tag">第1张→区3</span>
+              <span class="cond-tag">第2张→区2</span>
+              <span class="cond-tag">区4各一黑白</span>
+            </div>
+            <div class="host-btn">▶ 提前开始</div>
+          </div>
+          <div class="chat-col" style="display:flex;flex-direction:column">
+            <div class="label-sm">讨论</div>
+            <div class="chat-msg"><span class="nick">A：</span>区6放小的</div>
+            <div class="chat-msg"><span class="nick">B：</span>标记留给区2</div>
+            <div style="flex:1"></div>
+            <div class="chat-input">输入…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 选项 B（计划方案） -->
+  <div class="card opt-b" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>左钟右聊 + 下方条件栏</h3>
+      <div class="card-sub">和 frontend-ui-plan 一致：钟面+聊天上方，条件独立一行</div>
+      <div class="frame">
+        <div class="frame-topbar">
+          <span class="brand">◷</span>
+          <span>第 3 关 · 讨论中</span>
+          <span class="timer">⏱ 04:37</span>
+        </div>
+        <div class="frame-body">
+          <div class="top-row">
+            <div class="clock-col">
+              <div class="label-sm">钟面预览</div>
+              <div class="clock-ring">∞</div>
+              <div class="host-btn" style="margin-top:6px">▶ 提前开始</div>
+            </div>
+            <div class="chat-col" style="display:flex;flex-direction:column">
+              <div class="label-sm">讨论</div>
+              <div class="chat-msg"><span class="nick">A：</span>区6放小的</div>
+              <div class="chat-msg"><span class="nick">B：</span>标记留给区2</div>
+              <div style="flex:1"></div>
+              <div class="chat-input">输入…</div>
+            </div>
+          </div>
+          <div class="conditions-bar">
+            <span class="label-sm" style="display:inline">本关目标：</span>
+            <span class="cond-tag">第1张→区3</span>
+            <span class="cond-tag">第2张→区2</span>
+            <span class="cond-tag">区4各一黑白</span>
+            <span class="cond-tag">所有区段≥1张</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 选项 C -->
+  <div class="card opt-c" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>钟面居顶全宽 · 聊天+条件并排下方</h3>
+      <div class="card-sub">钟面优先，聊天和条件清单在底部平分</div>
+      <div class="frame">
+        <div class="frame-topbar">
+          <span class="brand">◷</span>
+          <span>第 3 关 · 讨论中</span>
+          <span class="timer">⏱ 04:37</span>
+        </div>
+        <div class="frame-body">
+          <div class="clock-row" style="text-align:center">
+            <div class="label-sm">钟面预览</div>
+            <div class="clock-ring" style="width:70px;height:70px">∞</div>
+          </div>
+          <div class="bottom-row">
+            <div class="chat-col" style="display:flex;flex-direction:column">
+              <div class="label-sm">讨论</div>
+              <div class="chat-msg"><span class="nick">A：</span>区6放小的</div>
+              <div style="flex:1"></div>
+              <div class="chat-input">输入…</div>
+            </div>
+            <div class="cond-col">
+              <div class="label-sm">本关条件</div>
+              <div class="rules-text">① 第1张→区3<br>② 第2张→区2<br>③ 区4各一黑白<br>④ 所有区段≥1张</div>
+              <div class="host-btn">▶ 提前开始</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>

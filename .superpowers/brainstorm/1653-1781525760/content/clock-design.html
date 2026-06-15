@@ -1,0 +1,147 @@
+<style>
+  .q-title { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+  .q-sub   { font-size: 13px; color: #9AA4B8; margin-bottom: 24px; }
+  .cards   { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; }
+  .card    { flex: 1; min-width: 220px; max-width: 300px; background: #121b2c;
+             border: 1.5px solid #2a3550; border-radius: 14px; padding: 20px;
+             cursor: pointer; transition: border-color 0.15s; text-align: center; }
+  .card:hover   { border-color: #C9A24B55; }
+  .card.selected { border-color: #C9A24B; box-shadow: 0 0 0 2px rgba(201,162,75,.25); }
+  .card h3      { font-size: 14px; font-weight: 700; color: #ECE6D8; margin: 12px 0 4px; }
+  .card .card-sub { font-size: 12px; color: #9AA4B8; }
+  svg text { font-family: "Geist Mono", monospace; }
+</style>
+
+<div class="q-title">钟面 SVG 风格 — 选哪种？</div>
+<div class="q-sub">6 个区段 S1–S6，讨论阶段无牌；选你喜欢的视觉风格。</div>
+
+<div class="cards">
+
+  <!-- 选项 A：钟盘式，12 刻度环 + 6 弧段 -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <svg width="180" height="180" viewBox="0 0 180 180">
+      <!-- 底层背景圆 -->
+      <circle cx="90" cy="90" r="80" fill="#0c1320" stroke="#2a3550" stroke-width="1"/>
+      <!-- 外刻度环 -->
+      <circle cx="90" cy="90" r="76" fill="none" stroke="#C9A24B" stroke-width="1.5" opacity="0.3"/>
+      <!-- 12个刻度线 -->
+      <g stroke="#C9A24B" stroke-width="1" opacity="0.5">
+        <line x1="90" y1="14" x2="90" y2="22" transform="rotate(0 90 90)"/>
+        <line x1="90" y1="14" x2="90" y2="22" transform="rotate(30 90 90)"/>
+        <line x1="90" y1="14" x2="90" y2="22" transform="rotate(60 90 90)"/>
+        <line x1="90" y1="14" x2="90" y2="22" transform="rotate(90 90 90)"/>
+        <line x1="90" y1="14" x2="90" y2="22" transform="rotate(120 90 90)"/>
+        <line x1="90" y1="14" x2="90" y2="22" transform="rotate(150 90 90)"/>
+        <line x1="90" y1="14" x2="90" y2="22" transform="rotate(180 90 90)"/>
+        <line x1="90" y1="14" x2="90" y2="22" transform="rotate(210 90 90)"/>
+        <line x1="90" y1="14" x2="90" y2="22" transform="rotate(240 90 90)"/>
+        <line x1="90" y1="14" x2="90" y2="22" transform="rotate(270 90 90)"/>
+        <line x1="90" y1="14" x2="90" y2="22" transform="rotate(300 90 90)"/>
+        <line x1="90" y1="14" x2="90" y2="22" transform="rotate(330 90 90)"/>
+      </g>
+      <!-- 6 个弧段（每段 60°）分隔线 -->
+      <g stroke="#C9A24B" stroke-width="1" opacity="0.4">
+        <line x1="90" y1="90" x2="90" y2="18" transform="rotate(0 90 90)"/>
+        <line x1="90" y1="90" x2="90" y2="18" transform="rotate(60 90 90)"/>
+        <line x1="90" y1="90" x2="90" y2="18" transform="rotate(120 90 90)"/>
+        <line x1="90" y1="90" x2="90" y2="18" transform="rotate(180 90 90)"/>
+        <line x1="90" y1="90" x2="90" y2="18" transform="rotate(240 90 90)"/>
+        <line x1="90" y1="90" x2="90" y2="18" transform="rotate(300 90 90)"/>
+      </g>
+      <!-- 区段标签 S1-S6（12点为S1，顺时针） -->
+      <text x="90" y="38" text-anchor="middle" font-size="10" fill="#C9A24B" font-weight="700">S1</text>
+      <text x="128" y="62" text-anchor="middle" font-size="10" fill="#9AA4B8">S2</text>
+      <text x="128" y="122" text-anchor="middle" font-size="10" fill="#9AA4B8">S3</text>
+      <text x="90" y="148" text-anchor="middle" font-size="10" fill="#9AA4B8">S4</text>
+      <text x="52" y="122" text-anchor="middle" font-size="10" fill="#9AA4B8">S5</text>
+      <text x="52" y="62" text-anchor="middle" font-size="10" fill="#9AA4B8">S6</text>
+      <!-- 中心圆 + centerCap -->
+      <circle cx="90" cy="90" r="28" fill="#121b2c" stroke="#C9A24B" stroke-width="1.5" opacity="0.6"/>
+      <text x="90" y="94" text-anchor="middle" font-size="14" fill="#C9A24B" font-weight="700">∞</text>
+      <!-- 空段提示（浅色扇形） -->
+      <path d="M90,90 L90,18 A72,72 0 0,1 152.4,54 Z" fill="#C9A24B" opacity="0.06"/>
+    </svg>
+    <h3>时钟盘式</h3>
+    <div class="card-sub">12 刻度环 + 6 扇形区段<br>中心显示 centerCap<br>最接近真实时钟氛围</div>
+  </div>
+
+  <!-- 选项 B：六边形蜂巢式 -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <svg width="180" height="180" viewBox="0 0 180 180">
+      <circle cx="90" cy="90" r="80" fill="#0c1320" stroke="#2a3550" stroke-width="1"/>
+      <!-- 六边形六格 -->
+      <!-- S1 top -->
+      <polygon points="90,18 131,42 90,66" fill="#C9A24B" opacity="0.08" stroke="#C9A24B" stroke-width="1" stroke-opacity="0.4"/>
+      <!-- S2 top-right -->
+      <polygon points="131,42 131,90 90,66" fill="#C9A24B" opacity="0.06" stroke="#C9A24B" stroke-width="1" stroke-opacity="0.3"/>
+      <!-- S3 bottom-right -->
+      <polygon points="131,90 90,114 90,66" fill="#C9A24B" opacity="0.04" stroke="#C9A24B" stroke-width="1" stroke-opacity="0.25"/>
+      <!-- S4 bottom -->
+      <polygon points="90,114 49,90 90,66" fill="#C9A24B" opacity="0.06" stroke="#C9A24B" stroke-width="1" stroke-opacity="0.3"/>
+      <!-- S5 bottom-left -->
+      <polygon points="49,90 49,42 90,66" fill="#C9A24B" opacity="0.04" stroke="#C9A24B" stroke-width="1" stroke-opacity="0.25"/>
+      <!-- S6 top-left -->
+      <polygon points="49,42 90,18 90,66" fill="#C9A24B" opacity="0.08" stroke="#C9A24B" stroke-width="1" stroke-opacity="0.4"/>
+      <!-- 外六边形 -->
+      <polygon points="90,18 131,42 131,90 90,114 49,90 49,42" fill="none" stroke="#C9A24B" stroke-width="1.5" opacity="0.5"/>
+      <!-- 标签 -->
+      <text x="90" y="36" text-anchor="middle" font-size="10" fill="#C9A24B" font-weight="700">S1</text>
+      <text x="124" y="62" text-anchor="middle" font-size="10" fill="#9AA4B8">S2</text>
+      <text x="124" y="100" text-anchor="middle" font-size="10" fill="#9AA4B8">S3</text>
+      <text x="90" y="125" text-anchor="middle" font-size="10" fill="#9AA4B8">S4</text>
+      <text x="56" y="100" text-anchor="middle" font-size="10" fill="#9AA4B8">S5</text>
+      <text x="56" y="62" text-anchor="middle" font-size="10" fill="#9AA4B8">S6</text>
+      <!-- 中心 -->
+      <circle cx="90" cy="66" r="16" fill="#121b2c" stroke="#C9A24B" stroke-width="1.2" opacity="0.7"/>
+      <text x="90" y="71" text-anchor="middle" font-size="13" fill="#C9A24B" font-weight="700">∞</text>
+    </svg>
+    <h3>六边形蜂巢式</h3>
+    <div class="card-sub">6 个等腰三角格<br>视觉新颖、与时钟关联弱<br>牌堆入格感更直观</div>
+  </div>
+
+  <!-- 选项 C：环形弧段（无分割线，只靠间距） -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <svg width="180" height="180" viewBox="0 0 180 180">
+      <circle cx="90" cy="90" r="80" fill="#0c1320" stroke="#2a3550" stroke-width="1"/>
+      <!-- 6 弧段环，各带 4° 间距 -->
+      <!-- 每段 56°，gap 4° -->
+      <g fill="none" stroke-width="16" stroke-linecap="butt">
+        <!-- S1: -90° to -30° => 270 to 330 => startAngle=-90, sweep=56 -->
+        <circle cx="90" cy="90" r="58" stroke="#C9A24B" stroke-opacity="0.35"
+          stroke-dasharray="61.5 307.9" stroke-dashoffset="0"
+          transform="rotate(-90 90 90)"/>
+        <circle cx="90" cy="90" r="58" stroke="#9AA4B8" stroke-opacity="0.2"
+          stroke-dasharray="61.5 307.9" stroke-dashoffset="-67.5"
+          transform="rotate(-90 90 90)"/>
+        <circle cx="90" cy="90" r="58" stroke="#9AA4B8" stroke-opacity="0.2"
+          stroke-dasharray="61.5 307.9" stroke-dashoffset="-135"
+          transform="rotate(-90 90 90)"/>
+        <circle cx="90" cy="90" r="58" stroke="#9AA4B8" stroke-opacity="0.2"
+          stroke-dasharray="61.5 307.9" stroke-dashoffset="-202.5"
+          transform="rotate(-90 90 90)"/>
+        <circle cx="90" cy="90" r="58" stroke="#9AA4B8" stroke-opacity="0.2"
+          stroke-dasharray="61.5 307.9" stroke-dashoffset="-270"
+          transform="rotate(-90 90 90)"/>
+        <circle cx="90" cy="90" r="58" stroke="#9AA4B8" stroke-opacity="0.2"
+          stroke-dasharray="61.5 307.9" stroke-dashoffset="-337.5"
+          transform="rotate(-90 90 90)"/>
+      </g>
+      <!-- 标签 -->
+      <text x="90" y="26" text-anchor="middle" font-size="10" fill="#C9A24B" font-weight="700">S1</text>
+      <text x="134" y="58" text-anchor="middle" font-size="10" fill="#9AA4B8">S2</text>
+      <text x="134" y="128" text-anchor="middle" font-size="10" fill="#9AA4B8">S3</text>
+      <text x="90" y="160" text-anchor="middle" font-size="10" fill="#9AA4B8">S4</text>
+      <text x="46" y="128" text-anchor="middle" font-size="10" fill="#9AA4B8">S5</text>
+      <text x="46" y="58" text-anchor="middle" font-size="10" fill="#9AA4B8">S6</text>
+      <!-- 中心 -->
+      <circle cx="90" cy="90" r="32" fill="#121b2c" stroke="#C9A24B" stroke-width="1.5" opacity="0.6"/>
+      <text x="90" y="94" text-anchor="middle" font-size="14" fill="#C9A24B" font-weight="700">∞</text>
+    </svg>
+    <h3>环形弧段式</h3>
+    <div class="card-sub">粗弧环 6 段，间距分隔<br>现代简洁，牌堆在环内侧<br>centerCap 居中大字</div>
+  </div>
+
+</div>

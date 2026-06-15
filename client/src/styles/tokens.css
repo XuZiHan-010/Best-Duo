@@ -1,0 +1,46 @@
+:root {
+  color-scheme: dark;
+
+  /* 背景层次 */
+  --bg-0:   #060a12;
+  --bg-1:   #0c1320;
+  --bg-2:   #121b2c;
+  --bg-3:   #1a2740;
+  --hairline: #2a3550;
+
+  /* 文字 */
+  --ink:     #ECE6D8;
+  --ink-mut: #9AA4B8;
+  --ink-dim: #5C6680;
+
+  /* 黄铜 / 琥珀强调 */
+  --brass:      #C9A24B;
+  --amber:      #E8B14C;
+  --brass-glow: rgba(232,177,76,.35);
+
+  /* 功能色 */
+  --turn:       #4FD1C5;
+  --turn-glow:  rgba(79,209,197,.30);
+  --danger:     #E0533D;
+  --success:    #7FB069;
+  --warn:       #E8B14C;
+
+  /* 字体 */
+  --font-display: "Fraunces", "Songti SC", serif;
+  --font-body:    "Spline Sans", "PingFang SC", system-ui, sans-serif;
+  --font-mono:    "Geist Mono", "JetBrains Mono", ui-monospace, monospace;
+
+  /* 圆角 */
+  --r-card: 14px;
+  --r-pill: 999px;
+
+  /* 阴影 */
+  --shadow-card: 0 8px 28px rgba(0,0,0,.45);
+  --shadow-lift: 0 14px 40px rgba(0,0,0,.55);
+
+  /* 动效 */
+  --ease:     cubic-bezier(.2,.7,.2,1);
+  --dur-fast: 140ms;
+  --dur:      240ms;
+  --dur-slow: 420ms;
+}

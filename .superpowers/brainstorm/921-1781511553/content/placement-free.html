@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg-0:#060a12;--bg-1:#0c1320;--bg-2:#121b2c;--bg-3:#1a2740;
+  --hairline:#2a3550;
+  --ink:#ECE6D8;--ink-mut:#9AA4B8;--ink-dim:#5C6680;
+  --brass:#C9A24B;--amber:#E8B14C;
+  --turn:#4FD1C5;--danger:#E0533D;--success:#7FB069;
+}
+body{background:var(--bg-0);color:var(--ink);font-family:system-ui,sans-serif;padding:24px 28px;}
+.card{display:inline-flex;align-items:center;justify-content:center;width:38px;height:54px;border-radius:6px;border:2px solid;font-weight:800;font-size:17px;font-variant-numeric:tabular-nums;flex-shrink:0;}
+.card.black{background:linear-gradient(160deg,#2e2724,#161210);color:#ECE6D8;border-color:#4a3d30;}
+.card.selected{border-color:var(--turn);box-shadow:0 0 0 3px rgba(79,209,197,.3);transform:translateY(-5px) scale(1.08);}
+.card.face-down{background:linear-gradient(160deg,#1a2740,#0e1828);border-color:var(--brass);position:relative;}
+.card.face-down::after{content:'';display:block;position:absolute;width:55%;height:65%;border-radius:3px;border:1px solid rgba(201,162,75,.28);background:repeating-linear-gradient(45deg,rgba(201,162,75,.05) 0,rgba(201,162,75,.05) 2px,transparent 2px,transparent 5px);}
+
+.split{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-top:20px;}
+.box{background:var(--bg-2);border:1px solid var(--hairline);border-radius:12px;padding:18px 20px;}
+.box.good{border-color:rgba(127,176,105,.3);}
+.box.removed{border-color:rgba(92,102,128,.3);opacity:.65;}
+.box-title{font-size:12px;font-weight:700;margin-bottom:4px;}
+.box-sub{font-size:11px;color:var(--ink-mut);margin-bottom:14px;}
+
+/* mini clock */
+.mc{position:relative;width:180px;height:180px;margin:0 auto;}
+.mc-ring{width:180px;height:180px;border-radius:50%;border:2px solid var(--hairline);background:radial-gradient(circle at 50%,#121b2c 50%,#0c1320);position:absolute;}
+.mc-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:40px;height:40px;border-radius:50%;border:1.5px solid var(--brass);background:var(--bg-3);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:var(--amber);}
+svg.mc-svg{position:absolute;top:0;left:0;width:180px;height:180px;pointer-events:none;}
+.seg{position:absolute;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10px;font-weight:700;color:var(--brass);}
+.drop{width:30px;height:42px;border-radius:6px;border:2px solid;display:flex;align-items:center;justify-content:center;}
+/* 选牌后 — 全部区段同等高亮 */
+.drop.all-active{border-color:var(--turn);background:rgba(79,209,197,.1);box-shadow:0 0 10px rgba(79,209,197,.18);}
+/* 有牌的区段 */
+.drop.has-card{border-color:var(--brass);background:var(--bg-3);font-size:11px;color:var(--ink-mut);}
+
+.change-list{display:flex;flex-direction:column;gap:10px;margin-top:16px;}
+.change-row{display:flex;gap:10px;align-items:flex-start;font-size:12px;line-height:1.55;}
+.ci{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0;}
+.ci.keep{background:rgba(127,176,105,.2);color:var(--success);}
+.ci.remove{background:rgba(92,102,128,.2);color:var(--ink-dim);}
+</style>
+</head>
+<body>
+
+<h2>「自由放置」交互设计确认</h2>
+<p style="color:var(--ink-mut);font-size:13px;margin-top:4px;">选牌后所有区段均可点击，系统不区分合法/非法，规则由玩家自行把握</p>
+
+<div class="split">
+
+  <!-- 左：选牌后时钟状态 -->
+  <div class="box good">
+    <div class="box-title" style="color:var(--success);">✓ 选牌后 — 6 个区段全部等亮</div>
+    <div class="box-sub">黑3 已选中，全部区段显示相同青色可点击态，无差别提示</div>
+
+    <div style="display:flex;justify-content:center;margin-bottom:14px;">
+      <div class="card black selected">3</div>
+    </div>
+
+    <div class="mc">
+      <div class="mc-ring"></div>
+      <svg class="mc-svg" viewBox="0 0 180 180">
+        <line x1="90" y1="90" x2="90"  y2="8"   stroke="#2a3550" stroke-width="1.2"/>
+        <line x1="90" y1="90" x2="160" y2="48"  stroke="#2a3550" stroke-width="1.2"/>
+        <line x1="90" y1="90" x2="160" y2="132" stroke="#2a3550" stroke-width="1.2"/>
+        <line x1="90" y1="90" x2="90"  y2="172" stroke="#2a3550" stroke-width="1.2"/>
+        <line x1="90" y1="90" x2="20"  y2="132" stroke="#2a3550" stroke-width="1.2"/>
+        <line x1="90" y1="90" x2="20"  y2="48"  stroke="#2a3550" stroke-width="1.2"/>
+        <circle cx="90" cy="90" r="81" fill="none" stroke="#C9A24B" stroke-width=".8" opacity=".2"/>
+      </svg>
+      <div class="mc-center">∞</div>
+      <!-- 所有区段同等高亮 -->
+      <div class="seg" style="top:4px;left:50%;transform:translateX(-50%)"><span>S1</span><div class="drop all-active"></div></div>
+      <div class="seg" style="top:16px;right:6px;align-items:flex-end"><span>S2</span><div class="drop all-active"></div></div>
+      <div class="seg" style="bottom:16px;right:6px;align-items:flex-end"><div class="drop has-card">1张</div><span>S3</span></div>
+      <div class="seg" style="bottom:4px;left:50%;transform:translateX(-50%)"><div class="drop has-card" style="width:60px;font-size:10px;">2张</div><span>S4</span></div>
+      <div class="seg" style="bottom:16px;left:6px"><div class="drop has-card" style="width:60px;font-size:10px;">2张</div><span>S5</span></div>
+      <div class="seg" style="top:16px;left:6px"><div class="drop all-active"></div><span>S6</span></div>
+    </div>
+    <div style="font-size:10px;color:var(--turn);text-align:center;margin-top:8px;">已有牌的区段也可继续放（系统不阻止叠放）</div>
+  </div>
+
+  <!-- 右：设计变化清单 -->
+  <div class="box">
+    <div class="box-title">相应设计调整</div>
+    <div class="box-sub">与之前草稿相比，以下内容需要变更</div>
+
+    <div class="change-list">
+      <div class="change-row">
+        <div class="ci keep">✓</div>
+        <div>
+          <strong>左侧规则面板保留</strong><br>
+          <span style="color:var(--ink-mut);">「第1张落区段3」等条件仍显示在左边，玩家出牌前自己对照规则决策。</span>
+        </div>
+      </div>
+      <div class="change-row">
+        <div class="ci remove">✕</div>
+        <div>
+          <strong>移除时钟盘上的条件 badge</strong><br>
+          <span style="color:var(--ink-mut);">原草稿中 S3 上的「① 第1张」、S4 上的「⚫⚪ 各一」等标注去掉——规则集中在左侧面板，盘面保持简洁。</span>
+        </div>
+      </div>
+      <div class="change-row">
+        <div class="ci remove">✕</div>
+        <div>
+          <strong>移除「条件已达成 ✓」实时反馈</strong><br>
+          <span style="color:var(--ink-mut);">出牌阶段不显示哪些条件已满足，所有校验统一推迟到揭示阶段逐条亮灯。</span>
+        </div>
+      </div>
+      <div class="change-row">
+        <div class="ci remove">✕</div>
+        <div>
+          <strong>移除选牌后区段差异高亮</strong><br>
+          <span style="color:var(--ink-mut);">不区分「此处放合法」vs「此处放违规」——6 个区段选牌后一律等亮青色。</span>
+        </div>
+      </div>
+      <div class="change-row">
+        <div class="ci keep">✓</div>
+        <div>
+          <strong>已放张数仍然显示</strong><br>
+          <span style="color:var(--ink-mut);">每个区段的「N 张」计数保留——这是事实信息，不是提示，玩家需要知道每格放了几张。</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<div style="margin-top:20px;padding:14px 18px;background:var(--bg-2);border:1px solid rgba(232,177,76,.25);border-radius:10px;font-size:12px;color:var(--ink-mut);line-height:1.7;">
+  <strong style="color:var(--amber);">有一个边界问题需要确认：</strong><br>
+  已有牌的区段，允许继续叠放更多牌吗？（比如 S4 已有 2 张，还能继续放第 3 张？）<br>
+  如果允许，区段内的牌会堆叠显示；如果不允许，则需要一个上限，但那就属于系统限制了。
+</div>
+
+</body>
+</html>

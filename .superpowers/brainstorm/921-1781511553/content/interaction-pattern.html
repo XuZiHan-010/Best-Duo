@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg-0:#060a12;--bg-1:#0c1320;--bg-2:#121b2c;--bg-3:#1a2740;
+  --hairline:#2a3550;
+  --ink:#ECE6D8;--ink-mut:#9AA4B8;--ink-dim:#5C6680;
+  --brass:#C9A24B;--amber:#E8B14C;
+  --turn:#4FD1C5;--danger:#E0533D;--success:#7FB069;
+}
+body{background:var(--bg-0);color:var(--ink);font-family:system-ui,sans-serif;padding:24px 28px;}
+h2{margin-bottom:6px;}
+
+/* ── CARD ── */
+.card{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:42px;height:60px;border-radius:7px;border:2px solid;
+  font-weight:800;font-size:18px;font-variant-numeric:tabular-nums;
+  flex-shrink:0;transition:transform .12s,box-shadow .12s,border-color .12s;
+  cursor:pointer;position:relative;
+}
+.card.white{background:linear-gradient(160deg,#f0ede4,#d8d2c4);color:#1a1a1a;border-color:#b8b0a0;}
+.card.black{background:linear-gradient(160deg,#2e2724,#161210);color:#ECE6D8;border-color:#4a3d30;}
+.card.blind{background:linear-gradient(160deg,#1a2740,#0e1828);border-color:rgba(201,162,75,.4);color:rgba(201,162,75,.5);}
+
+/* states */
+.card.selected{border-color:var(--turn);box-shadow:0 0 0 3px rgba(79,209,197,.3),0 6px 18px rgba(0,0,0,.5);transform:translateY(-6px) scale(1.08);}
+.card.dragging{border-color:var(--amber);box-shadow:0 0 0 3px rgba(232,177,76,.3),0 12px 28px rgba(0,0,0,.6);transform:translateY(-10px) scale(1.12);opacity:.9;}
+.card.pending{opacity:.45;pointer-events:none;}
+
+/* ── MINI CLOCK ── */
+.mini-clock{position:relative;width:200px;height:200px;flex-shrink:0;}
+.mc-ring{width:200px;height:200px;border-radius:50%;border:2px solid var(--hairline);background:radial-gradient(circle at 50%,#121b2c 50%,#0c1320);position:absolute;}
+svg.mc-lines{position:absolute;top:0;left:0;width:200px;height:200px;pointer-events:none;}
+.mc-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:44px;height:44px;border-radius:50%;border:1.5px solid var(--brass);background:var(--bg-3);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:var(--amber);}
+.seg-btn{position:absolute;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10px;font-weight:700;color:var(--brass);}
+.seg-drop{width:34px;height:44px;border-radius:6px;border:2px dashed var(--hairline);background:transparent;transition:all .15s;}
+.seg-drop.active{border-color:var(--turn);background:rgba(79,209,197,.1);box-shadow:0 0 12px rgba(79,209,197,.2);}
+.seg-drop.hover{border-color:var(--amber);background:rgba(232,177,76,.12);box-shadow:0 0 14px rgba(232,177,76,.25);transform:scale(1.1);}
+
+/* ── LAYOUT ── */
+.compare{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:20px;}
+.option-card{background:var(--bg-2);border:1px solid var(--hairline);border-radius:14px;padding:20px 22px;}
+.option-card.recommended{border-color:var(--brass);box-shadow:0 0 0 1px rgba(201,162,75,.2);}
+.opt-title{font-size:14px;font-weight:700;margin-bottom:4px;}
+.opt-tag{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;margin-bottom:14px;}
+.tag-rec{background:rgba(201,162,75,.2);color:var(--amber);border:1px solid var(--brass);}
+.tag-alt{background:rgba(92,102,128,.2);color:var(--ink-mut);border:1px solid var(--hairline);}
+
+.demo{display:flex;gap:20px;align-items:flex-start;margin:16px 0;}
+.hand-col{display:flex;flex-direction:column;gap:6px;align-items:center;}
+.hand-label{font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--ink-dim);margin-bottom:2px;}
+.hand-cards{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;}
+.hand-cards .card{width:36px;height:51px;font-size:15px;}
+
+.step-list{list-style:none;display:flex;flex-direction:column;gap:8px;margin-top:14px;}
+.step-list li{display:flex;align-items:flex-start;gap:10px;font-size:12px;line-height:1.5;color:var(--ink-mut);}
+.step-num{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0;background:var(--bg-3);border:1px solid var(--hairline);color:var(--amber);}
+
+.arrow{color:var(--ink-dim);font-size:18px;align-self:center;flex-shrink:0;}
+.pros-cons{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px;}
+.pros{background:rgba(127,176,105,.06);border:1px solid rgba(127,176,105,.2);border-radius:8px;padding:10px 12px;}
+.cons{background:rgba(92,102,128,.06);border:1px solid var(--hairline);border-radius:8px;padding:10px 12px;}
+.pc-title{font-size:9px;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px;}
+.pc-title.p{color:var(--success);}
+.pc-title.c{color:var(--ink-dim);}
+.pc-item{font-size:11px;line-height:1.55;color:var(--ink-mut);margin-bottom:3px;}
+.pc-item::before{content:'· ';color:var(--ink-dim);}
+
+.highlight-box{background:rgba(79,209,197,.07);border:1px solid rgba(79,209,197,.2);border-radius:8px;padding:10px 12px;margin-top:14px;font-size:12px;color:var(--ink-mut);line-height:1.6;}
+</style>
+</head>
+<body>
+
+<h2>出牌交互方案对比</h2>
+<p style="color:var(--ink-mut);font-size:13px;margin-top:4px;">手牌 → 时钟盘区段，两种主流方案</p>
+
+<div class="compare">
+
+  <!-- ═══ 方案 A：点选 + 点区段 ═══ -->
+  <div class="option-card recommended">
+    <div class="opt-title">方案 A — 点选 + 点区段</div>
+    <span class="opt-tag tag-rec">✦ 推荐 · 主交互</span>
+
+    <!-- 步骤示意 -->
+    <div class="demo">
+      <!-- Step 1: 点牌 -->
+      <div class="hand-col">
+        <div class="hand-label">① 点击手牌</div>
+        <div class="hand-cards">
+          <div class="card black blind">?</div>
+          <div class="card white">7</div>
+          <div class="card black selected" style="width:36px;height:51px;font-size:15px;">3</div>
+          <div class="card white">11</div>
+          <div class="card black">9</div>
+          <div class="card black blind">?</div>
+        </div>
+        <div style="font-size:10px;color:var(--turn);margin-top:4px;">黑3 已选中 ↑</div>
+      </div>
+
+      <div class="arrow">→</div>
+
+      <!-- Step 2: 点区段 -->
+      <div style="text-align:center;">
+        <div class="hand-label">② 点击目标区段</div>
+        <div class="mini-clock">
+          <div class="mc-ring"></div>
+          <svg class="mc-lines" viewBox="0 0 200 200">
+            <line x1="100" y1="100" x2="100" y2="10" stroke="#2a3550" stroke-width="1.2"/>
+            <line x1="100" y1="100" x2="178" y2="55" stroke="#2a3550" stroke-width="1.2"/>
+            <line x1="100" y1="100" x2="178" y2="145" stroke="#2a3550" stroke-width="1.2"/>
+            <line x1="100" y1="100" x2="100" y2="190" stroke="#2a3550" stroke-width="1.2"/>
+            <line x1="100" y1="100" x2="22"  y2="145" stroke="#2a3550" stroke-width="1.2"/>
+            <line x1="100" y1="100" x2="22"  y2="55"  stroke="#2a3550" stroke-width="1.2"/>
+            <!-- 高亮可选区段的扇形 -->
+            <path d="M100,100 L178,55 A90,90 0 0,1 178,145" fill="rgba(79,209,197,.1)"/>
+            <path d="M100,100 L100,10 A90,90 0 0,1 178,55" fill="rgba(79,209,197,.08)"/>
+            <path d="M100,100 L22,55 A90,90 0 0,1 100,10" fill="rgba(79,209,197,.08)"/>
+          </svg>
+          <div class="mc-center">∞</div>
+          <!-- S1 可点 -->
+          <div class="seg-btn" style="top:4px;left:50%;transform:translateX(-50%)">
+            <span>S1</span><div class="seg-drop active"></div>
+          </div>
+          <!-- S2 可点（hover） -->
+          <div class="seg-btn" style="top:18px;right:8px;align-items:flex-end">
+            <span>S2</span><div class="seg-drop hover"></div>
+          </div>
+          <!-- S3 可点 -->
+          <div class="seg-btn" style="bottom:18px;right:8px;align-items:flex-end">
+            <span>S3</span><div class="seg-drop active"></div>
+          </div>
+          <!-- S4 已有牌，不高亮 -->
+          <div class="seg-btn" style="bottom:4px;left:50%;transform:translateX(-50%)">
+            <span style="color:var(--ink-dim)">S4</span>
+            <div style="width:34px;height:44px;border-radius:6px;background:var(--bg-3);border:1px solid var(--hairline);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--ink-dim)">2张</div>
+          </div>
+          <!-- S5 可点 -->
+          <div class="seg-btn" style="bottom:18px;left:8px">
+            <span>S5</span><div class="seg-drop active"></div>
+          </div>
+          <!-- S6 可点 -->
+          <div class="seg-btn" style="top:18px;left:8px">
+            <span>S6</span><div class="seg-drop active"></div>
+          </div>
+        </div>
+        <div style="font-size:10px;color:var(--turn);margin-top:4px;">青色高亮 = 可放置区段</div>
+      </div>
+    </div>
+
+    <ul class="step-list">
+      <li><span class="step-num">1</span>点击手牌中一张 → 该牌升起高亮，时钟盘上所有可放区段变青色</li>
+      <li><span class="step-num">2</span>再点击目标区段 → 发送 <code style="color:var(--amber);font-size:10px;">card:place</code>，牌进入 pending 态灰显，等服务端确认</li>
+      <li><span class="step-num">3</span>点其他空白处或按 Esc → 取消选中，不发送</li>
+    </ul>
+
+    <div class="pros-cons">
+      <div class="pros">
+        <div class="pc-title p">优点</div>
+        <div class="pc-item">手机/平板完美支持</div>
+        <div class="pc-item">误触率低（两步确认）</div>
+        <div class="pc-item">区段高亮防误放</div>
+        <div class="pc-item">键盘可操作（方向键选牌 + Enter）</div>
+      </div>
+      <div class="cons">
+        <div class="pc-title c">缺点</div>
+        <div class="pc-item">比拖拽多一次点击</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ 方案 B：拖拽 ═══ -->
+  <div class="option-card">
+    <div class="opt-title">方案 B — 拖拽到区段</div>
+    <span class="opt-tag tag-alt">桌面补充</span>
+
+    <div class="demo">
+      <div class="hand-col">
+        <div class="hand-label">抓住牌拖向时钟</div>
+        <div class="hand-cards">
+          <div class="card black blind">?</div>
+          <div class="card white">7</div>
+          <div class="card black dragging" style="width:36px;height:51px;font-size:15px;">3</div>
+          <div class="card white pending" style="width:36px;height:51px;font-size:15px;">11</div>
+          <div class="card black pending" style="width:36px;height:51px;font-size:15px;">9</div>
+          <div class="card black blind">?</div>
+        </div>
+      </div>
+      <div class="arrow">→</div>
+      <div style="text-align:center;">
+        <div class="hand-label">拖到区段松手放置</div>
+        <div class="mini-clock">
+          <div class="mc-ring"></div>
+          <svg class="mc-lines" viewBox="0 0 200 200">
+            <line x1="100" y1="100" x2="100" y2="10" stroke="#2a3550" stroke-width="1.2"/>
+            <line x1="100" y1="100" x2="178" y2="55" stroke="#2a3550" stroke-width="1.2"/>
+            <line x1="100" y1="100" x2="178" y2="145" stroke="#2a3550" stroke-width="1.2"/>
+            <line x1="100" y1="100" x2="100" y2="190" stroke="#2a3550" stroke-width="1.2"/>
+            <line x1="100" y1="100" x2="22"  y2="145" stroke="#2a3550" stroke-width="1.2"/>
+            <line x1="100" y1="100" x2="22"  y2="55"  stroke="#2a3550" stroke-width="1.2"/>
+          </svg>
+          <div class="mc-center">∞</div>
+          <div class="seg-btn" style="top:4px;left:50%;transform:translateX(-50%)"><span>S1</span><div class="seg-drop"></div></div>
+          <div class="seg-btn" style="top:18px;right:8px;align-items:flex-end"><span>S2</span><div class="seg-drop hover"></div></div>
+          <div class="seg-btn" style="bottom:18px;right:8px;align-items:flex-end"><span>S3</span><div class="seg-drop"></div></div>
+          <div class="seg-btn" style="bottom:4px;left:50%;transform:translateX(-50%)"><span style="color:var(--ink-dim)">S4</span><div style="width:34px;height:44px;border-radius:6px;background:var(--bg-3);border:1px solid var(--hairline);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--ink-dim)">2张</div></div>
+          <div class="seg-btn" style="bottom:18px;left:8px"><span>S5</span><div class="seg-drop"></div></div>
+          <div class="seg-btn" style="top:18px;left:8px"><span>S6</span><div class="seg-drop"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <ul class="step-list">
+      <li><span class="step-num">1</span>鼠标按住手牌不松 → 牌跟随鼠标移动，区段出现落点高亮</li>
+      <li><span class="step-num">2</span>拖到目标区段上方松开 → 发送 <code style="color:var(--amber);font-size:10px;">card:place</code></li>
+      <li><span class="step-num">3</span>拖到时钟盘外松开 → 取消，牌回到手牌</li>
+    </ul>
+
+    <div class="pros-cons">
+      <div class="pros">
+        <div class="pc-title p">优点</div>
+        <div class="pc-item">操作直觉感强</div>
+        <div class="pc-item">一步完成放置</div>
+      </div>
+      <div class="cons">
+        <div class="pc-title c">缺点</div>
+        <div class="pc-item">手机拖拽体验差</div>
+        <div class="pc-item">倒计时紧张时更易误放</div>
+        <div class="pc-item">实现复杂度更高</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="highlight-box" style="margin-top:20px;">
+  <strong style="color:var(--turn);">推荐方案：A 为主，B 为桌面增强。</strong><br>
+  点选交互在移动端、键盘、低时延网络下都稳定；5 秒倒计时压力下「选牌 → 亮区段 → 点区段」的两步确认比拖拽更不容易出错。桌面端可以额外支持拖拽，两者发送的都是同一个 <code>card:place</code> 事件，后端无感知区别。
+</div>
+
+</body>
+</html>
