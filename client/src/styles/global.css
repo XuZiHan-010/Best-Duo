@@ -351,3 +351,187 @@ input, textarea {
   color: var(--ink-mut);
   font-size: 14px;
 }
+
+/* ── sr-only（无障碍隐藏）── */
+.sr-only {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0,0,0,0); white-space: nowrap; border-width: 0;
+}
+
+/* ── ConditionList ── */
+.condition-list { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.condition-list--compact { gap: 3px; }
+.condition-list__item {
+  display: flex; align-items: baseline; gap: 6px;
+  font-size: 14px; line-height: 1.4;
+}
+.condition-list--compact .condition-list__item { font-size: 12px; color: var(--ink-mut); }
+.condition-list__icon { flex-shrink: 0; width: 16px; font-weight: 700; }
+.condition-list__item--pass .condition-list__icon { color: var(--success); }
+.condition-list__item--fail  .condition-list__icon { color: var(--danger); }
+.condition-list__item--fail  .condition-list__text  { color: var(--danger); }
+.condition-list__text { color: var(--ink); min-width: 0; word-break: break-word; }
+.condition-list__msg {
+  margin-left: auto; font-size: 12px;
+  font-family: var(--font-mono); color: var(--ink-mut);
+  flex-shrink: 0;
+}
+.condition-list__item--fail .condition-list__msg { color: var(--danger); }
+
+/* ── ClockBoard ── */
+.clock-board {
+  display: flex; align-items: center; justify-content: center;
+  width: 100%; aspect-ratio: 1;
+  max-width: 360px; margin: 0 auto;
+}
+/* M3 交互态（出牌阶段）*/
+.clock-board__sector--interactive {
+  cursor: pointer;
+  transition: opacity var(--dur-fast) var(--ease);
+}
+.clock-board__sector--interactive:hover { opacity: 0.18 !important; }
+
+/* ── CountdownTimer ── */
+.countdown-timer {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.countdown-timer--warn   { color: var(--warn);   animation: pulse 1s ease infinite; }
+.countdown-timer--danger { color: var(--danger); animation: pulse 0.5s ease infinite; }
+
+/* ── Chat ── */
+.chat { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.chat__list {
+  flex: 1; overflow-y: auto; list-style: none;
+  display: flex; flex-direction: column; gap: 5px;
+  padding: 12px; min-height: 0;
+}
+.chat__empty { color: var(--ink-dim); font-size: 13px; font-style: italic; text-align: center; padding: 20px 0; }
+.chat__msg {
+  display: flex; gap: 4px; font-size: 13px; line-height: 1.5;
+  flex-wrap: wrap; min-width: 0; word-break: break-word;
+}
+.chat__nick { font-weight: 700; color: var(--ink-mut); flex-shrink: 0; }
+.chat__msg--mine .chat__nick { color: var(--brass); }
+.chat__text { color: var(--ink); }
+.chat__form {
+  display: flex; gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--hairline);
+  flex-shrink: 0;
+}
+.chat__input {
+  flex: 1; padding: 8px 12px;
+  background: var(--bg-0); border: 1.5px solid var(--hairline);
+  border-radius: 8px; color: var(--ink); font-size: 14px;
+  min-width: 0;
+  transition: border-color var(--dur-fast) var(--ease);
+}
+.chat__input:focus { border-color: var(--brass); outline: none; }
+.chat__input::placeholder { color: var(--ink-dim); }
+.chat__send { flex-shrink: 0; padding: 8px 14px; font-size: 13px; }
+
+/* ── LevelRulesIntro（模态弹窗）── */
+.level-rules-intro {
+  position: fixed; inset: 0;
+  background: rgba(6,10,18,.82);
+  backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px; z-index: 100;
+}
+.level-rules-intro__card {
+  width: 100%; max-width: 520px;
+  background: var(--bg-2); border: 1px solid var(--hairline);
+  border-radius: var(--r-card); padding: 32px 36px;
+  box-shadow: var(--shadow-lift);
+  display: flex; flex-direction: column; gap: 20px;
+  max-height: 90vh; overflow-y: auto;
+}
+.level-rules-intro__title {
+  font-family: var(--font-display); font-size: 20px;
+  font-weight: 700; color: var(--brass);
+}
+.level-rules-intro__divider { border: none; border-top: 1px solid var(--hairline); margin: 0; }
+.level-rules-intro__legend-title { font-size: 13px; font-weight: 700; color: var(--ink-mut); margin-bottom: 10px; }
+.level-rules-intro__legend-items { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.level-rules-intro__deck-note { font-size: 12px; color: var(--ink-dim); }
+.level-rules-intro__btn { width: 100%; justify-content: center; }
+
+/* 卡牌图例小块 */
+.card-demo {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 44px; height: 64px; border-radius: 8px;
+  font-size: 14px; font-weight: 700;
+}
+.card-demo--white { background: linear-gradient(160deg,#ECE6D8,#C8C0B0); color: #1a1a1a; border: 1px solid #B0A898; }
+.card-demo--black { background: linear-gradient(160deg,#1a1a2e,#0d0d1a); color: #ECE6D8; border: 1px solid #3a3a5c; }
+.card-demo--blind { background: var(--bg-3); color: var(--ink-dim); border: 1.5px solid var(--brass); font-size: 20px; }
+.card-demo--hint  { background: var(--bg-3); color: var(--amber);  border: 1.5px solid var(--amber); box-shadow: 0 0 8px var(--brass-glow); font-size: 20px; }
+
+/* ── RulesPanel ── */
+.rules-panel {
+  background: var(--bg-2); border: 1px solid var(--hairline);
+  border-radius: var(--r-card); padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.rules-panel__title { font-size: 12px; font-weight: 700; color: var(--ink-dim); text-transform: uppercase; letter-spacing: .05em; }
+
+/* ── LevelSelect ── */
+.level-select {
+  flex: 1; display: flex; flex-direction: column; gap: 16px;
+  padding: 24px 32px; max-width: 960px; margin: 0 auto; width: 100%;
+}
+.level-select__header { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.level-select__progress { font-size: 14px; color: var(--ink-mut); }
+.level-select__legend { display: flex; gap: 16px; margin-left: auto; font-size: 12px; color: var(--ink-dim); }
+.level-select__legend-item--cleared { color: var(--success); }
+.level-select__waiting { font-size: 13px; color: var(--ink-dim); text-align: center; padding: 2px 0; }
+.level-select__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(68px, 1fr));
+  gap: 10px;
+}
+.level-select__card {
+  position: relative; aspect-ratio: 1;
+  background: var(--bg-2); border: 1.5px solid var(--hairline);
+  border-radius: 10px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 2px;
+  transition: border-color var(--dur-fast) var(--ease),
+              background   var(--dur-fast) var(--ease);
+}
+.level-select__card:not(:disabled):hover { border-color: var(--brass); background: var(--bg-3); }
+.level-select__card--cleared {
+  border-color: rgba(127,176,105,.5);
+  background: rgba(127,176,105,.06);
+}
+.level-select__card--readonly:not(:disabled) { cursor: default; }
+.level-select__num { font-family: var(--font-mono); font-size: 15px; font-weight: 700; color: var(--ink); }
+.level-select__card--cleared .level-select__num { color: var(--success); }
+.level-select__cleared-badge {
+  position: absolute; top: 3px; right: 5px;
+  font-size: 9px; color: var(--success); font-weight: 700;
+}
+
+/* ── Discussion ── */
+.discussion { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.discussion__main { flex: 1; display: flex; min-height: 0; }
+.discussion__clock-col {
+  flex: 3; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 16px; padding: 24px;
+  border-right: 1px solid var(--hairline);
+}
+.discussion__chat-col { flex: 2; display: flex; flex-direction: column; min-height: 0; }
+.discussion__begin-btn { width: auto; }
+.discussion__conditions {
+  border-top: 1px solid var(--hairline);
+  padding: 10px 24px;
+  flex-shrink: 0;
+}
+/* 底部条件栏横向排列 */
+.discussion__conditions .condition-list {
+  flex-direction: row; flex-wrap: wrap; gap: 6px 20px;
+}
+.discussion__conditions .condition-list__item { font-size: 13px; }
