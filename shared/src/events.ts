@@ -14,6 +14,7 @@ export const ClientEvents = {
   GameRetry: "game:retry",
   GameNext: "game:next",
   HostBackToLevelSelect: "host:backToLevelSelect",
+  GameContinueToResult: "game:continueToResult",
   RoomReset: "room:reset"
 } as const;
 
