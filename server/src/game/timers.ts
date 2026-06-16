@@ -47,13 +47,3 @@ export const startHintTimer = (room: GameRoom, onExpire: () => void) => {
     if (room.phase === "placing" && room.pendingHint && room.turnVersion === version) onExpire();
   }, Math.max(0, deadline - Date.now()));
 };
-
-export const startRevealTimer = (room: GameRoom, holdMs: number, onExpire: () => void) => {
-  if (room.timers.reveal) clearTimeout(room.timers.reveal);
-  const version = room.phaseVersion;
-  const deadline = Date.now() + holdMs;
-  room.timer = { kind: "reveal", deadline };
-  room.timers.reveal = setTimeout(() => {
-    if (room.phase === "reveal" && room.phaseVersion === version) onExpire();
-  }, Math.max(0, deadline - Date.now()));
-};

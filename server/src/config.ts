@@ -20,6 +20,5 @@ export const config = {
   dataDir: process.env.DATA_DIR ?? "./data",
   seatHoldMs: numberFromEnv("SEAT_HOLD_MS", 60_000),
   hintWindowMs: numberFromEnv("HINT_WINDOW_MS", 5_000),
-  revealHoldMs: numberFromEnv("REVEAL_HOLD_MS", 3_000),
   clientDistDir: process.env.CLIENT_DIST_DIR ?? "../client/dist"
 } as const;

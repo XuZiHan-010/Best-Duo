@@ -27,7 +27,6 @@ import {
   clearTurnTimers,
   startDiscussionTimer,
   startHintTimer,
-  startRevealTimer,
   startTurnTimer
 } from "../game/timers.js";
 import type { ProgressStore } from "../persistence/progressStore.js";
@@ -79,10 +78,6 @@ const afterRevealIfNeeded = async (ctx: HandlerContext) => {
     );
     await saveProgress(ctx.progressStore, ctx.room.progress);
   }
-  startRevealTimer(ctx.room, config.revealHoldMs, () => {
-    enterResultAfterReveal(ctx.room);
-    emitStateToAll(ctx.io, ctx.room);
-  });
 };
 
 const beginPlacementWithTimers = (ctx: HandlerContext) => {
@@ -259,6 +254,15 @@ export const registerHandlers = (ctx: HandlerContext) => {
       clearTurnTimers(room);
       await afterRevealIfNeeded(ctx);
       await continueTurnOrAgentHandoff(ctx);
+      emitStateToAll(io, room);
+    })
+  );
+
+  socket.on(ClientEvents.GameContinueToResult, () =>
+    run(socket, () => {
+      if (!isHost(room, requireSeatId(socket))) throw new Error("只有房主可以继续");
+      if (room.phase !== "reveal") throw new Error("当前阶段无法继续");
+      enterResultAfterReveal(room);
       emitStateToAll(io, room);
     })
   );
