@@ -37,6 +37,9 @@ export const adapter = {
   hintDecide(payload: HintDecidePayload) {
     socket.emit(ClientEvents.HintDecide, payload);
   },
+  continueToResult() {
+    socket.emit(ClientEvents.GameContinueToResult);
+  },
   retry() {
     socket.emit(ClientEvents.GameRetry);
   },
