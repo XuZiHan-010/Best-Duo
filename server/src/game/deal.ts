@@ -1,4 +1,4 @@
-import type { Card, GameRoom, HandCard, SeatId } from "@take-time/shared";
+import type { Card, GameRoom, HandCard } from "@take-time/shared";
 import { dealRules } from "./dealRules.js";
 import { canSolveDeal, type SolverCard } from "./solver.js";
 
@@ -71,11 +71,18 @@ export const dealHands = (room: GameRoom) => {
   });
 };
 
-export const revealOwnerBlindCardsIfNeeded = (room: GameRoom, seatId: SeatId) => {
+export const revealRemainingBlindCardsIfNeeded = (room: GameRoom) => {
   const rule = dealRules[room.capacity];
-  if (rule.revealRemainingAfter === null) return;
-  if ((room.playedCount[seatId] ?? 0) < rule.revealRemainingAfter) return;
-  for (const card of room.hands[seatId] ?? []) {
-    card.visibleToOwner = true;
+  const revealRemainingAfter = rule.revealRemainingAfter;
+  if (revealRemainingAfter === null) return;
+
+  const seated = room.seats.filter((seat) => seat.nick);
+  if (seated.length === 0) return;
+  if (seated.some((seat) => (room.playedCount[seat.id] ?? 0) < revealRemainingAfter)) return;
+
+  for (const seat of seated) {
+    for (const card of room.hands[seat.id] ?? []) {
+      card.visibleToOwner = true;
+    }
   }
 };

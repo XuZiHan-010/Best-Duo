@@ -1,6 +1,6 @@
 import type { CardPlacePayload, GameRoom, HintDecidePayload, PlacedCard, SeatId } from "@take-time/shared";
 import { config } from "../config.js";
-import { revealOwnerBlindCardsIfNeeded } from "./deal.js";
+import { revealRemainingBlindCardsIfNeeded } from "./deal.js";
 import { totalPlacedCards } from "./room.js";
 import { nextSeatAfter } from "./turnOrder.js";
 
@@ -21,12 +21,13 @@ export const applyPlacement = (room: GameRoom, seatId: SeatId, payload: CardPlac
     value: card.value,
     color: card.color,
     revealed: false,
-    placedAt: Date.now()
+    placedAt: Date.now(),
+    playOrder: totalPlacedCards(room) + 1
   };
 
   room.placements[payload.segment].push(placed);
   room.playedCount[seatId] = (room.playedCount[seatId] ?? 0) + 1;
-  revealOwnerBlindCardsIfNeeded(room, seatId);
+  revealRemainingBlindCardsIfNeeded(room);
   room.pendingHint = {
     seatId,
     cardId: placed.id,

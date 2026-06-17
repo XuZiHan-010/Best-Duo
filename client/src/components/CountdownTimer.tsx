@@ -2,25 +2,41 @@ import React, { useEffect, useState } from "react";
 import { formatMmSs } from "../lib/timeFmt.js";
 
 interface CountdownTimerProps {
-  deadline: number;            // Date.now() 毫秒时间戳
-  warnThresholdMs?: number;    // 默认 30000（最后 30s 转警告色）
-  dangerThresholdMs?: number;  // 默认 2000（最后 2s 闪烁）
+  deadline: number;
+  warnThresholdMs?: number;
+  dangerThresholdMs?: number;
+  className?: string;
 }
 
 export function CountdownTimer({
   deadline,
   warnThresholdMs = 30_000,
   dangerThresholdMs = 2_000,
+  className,
 }: CountdownTimerProps) {
   const [remaining, setRemaining] = useState(() =>
     Math.max(0, deadline - Date.now())
   );
 
+  // requestAnimationFrame instead of a fixed setInterval — the displayed
+  // seconds only change at whole-second boundaries, but driving the check
+  // from rAF (rather than polling every 500ms) keeps that boundary crossing
+  // as close to on-time as the screen's own refresh, and pauses for free
+  // when the tab isn't visible.
   useEffect(() => {
-    const tick = () => setRemaining(Math.max(0, deadline - Date.now()));
-    const id = setInterval(tick, 500);
-    tick();
-    return () => clearInterval(id);
+    let frameId: number;
+    let lastShownMs = -1;
+    const tick = () => {
+      const ms = Math.max(0, deadline - Date.now());
+      const shownSeconds = Math.ceil(ms / 1000);
+      if (shownSeconds !== lastShownMs) {
+        lastShownMs = shownSeconds;
+        setRemaining(ms);
+      }
+      if (ms > 0) frameId = requestAnimationFrame(tick);
+    };
+    frameId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frameId);
   }, [deadline]);
 
   const isWarn   = remaining <= warnThresholdMs;
@@ -32,6 +48,7 @@ export function CountdownTimer({
         "countdown-timer",
         isWarn   ? "countdown-timer--warn"   : "",
         isDanger ? "countdown-timer--danger" : "",
+        className ?? "",
       ]
         .filter(Boolean)
         .join(" ")}

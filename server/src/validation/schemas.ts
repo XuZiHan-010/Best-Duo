@@ -1,12 +1,19 @@
 import { z } from "zod";
 
+const avatarDataUrlSchema = z
+  .string()
+  .max(300_000)
+  .regex(/^data:image\/(?:png|jpeg|jpg|webp);base64,[A-Za-z0-9+/]+={0,2}$/, "头像必须是有效的图片 data URL");
+
 export const playerJoinSchema = z.object({
   nick: z
     .string()
     .trim()
     .min(1)
     .max(24)
-    .regex(/^[一-龥a-zA-Z0-9_\-\s]+$/, "昵称只允许中文、英文、数字、下划线、横线和空格")
+    .regex(/^[一-龥a-zA-Z0-9_\-\s]+$/, "昵称只允许中文、英文、数字、下划线、横线和空格"),
+  avatar: avatarDataUrlSchema.nullish(),
+  password: z.string().min(1).max(128)
 });
 
 export const settingsUpdateSchema = z

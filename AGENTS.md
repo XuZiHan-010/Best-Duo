@@ -20,11 +20,18 @@
 - 进度持久化：Railway Volume 上的 JSON 文件（仅存已通关进度 + 设置）
 - 部署：Railway 单实例，监听 `process.env.PORT`
 
+## 当前开发进度
+
+- 后端：MVP M0–M7 基本完成，已处理 `backend-review-followups.md` 中的后端 review follow-ups；当前处于可开始 M8（3/4 人 `capacity` 放开与测试）的节点，M8 尚未正式实现。
+- 前端：核心联调界面已推进到可对接后端主流程的阶段，但 `frontend-code-review-2026-06-16.md` 中记录的 UI/交互/a11y 收口问题仍待修复；前端不是 M8 阶段，下一步应优先处理这些 review fixes。
+
 ## 文件目录
 
 | 路径 | 作用 |
 | --- | --- |
 | [rules.md](rules.md) | **游戏规则总结**——游戏机制的权威口径，改机制先看这里。 |
+| [docs/](docs/) | **产品 PRD / 规格文档**：产品总纲、路线图与后续规格说明。 |
+| [docs/product-roadmap-prd.md](docs/product-roadmap-prd.md) | 产品总纲与 V1–V4 路线图：双人 MVP、3/4 人扩展、AI agent、AI 接管与全 agent 对局。 |
 | [plans/](plans/) | **所有执行计划 / 设计方案**都放这里。 |
 | [plans/take-time-web-prototype.md](plans/take-time-web-prototype.md) | 当前设计方案：状态机、数据模型、Socket 事件、服务端校验、测试计划。 |
 | [plans/frontend-ui-plan.md](plans/frontend-ui-plan.md) | 前端开发计划 & UI 规划：美术方向、界面地图、组件架构、可访问性合规、里程碑。 |
@@ -36,6 +43,7 @@
 
 ## 约定
 
+- **产品级 PRD / 规格文档**统一放在 [docs/](docs/) 文件夹。
 - **执行计划 / 设计文档**统一放在 [plans/](plans/) 文件夹。
 - **关卡设计**统一放在 [levels/](levels/) 文件夹，一关一个 md，按难度递进；新增关卡同步更新 [levels/README.md](levels/README.md) 的关卡列表。
 - **游戏规则**以 [rules.md](rules.md) 为权威来源；[plans/](plans/) 里的设计需与之保持一致。

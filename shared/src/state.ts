@@ -3,13 +3,14 @@ import type { CardColor, Challenge, LevelSummary, RevealResult } from "./level.j
 export type SeatId = "A" | "B" | "C" | "D";
 export type SeatKind = "human" | "agent";
 export type Phase = "waiting" | "levelSelect" | "discussion" | "placing" | "reveal" | "result";
-export type FailureReason = "rule-unmet" | "timeout" | null;
+export type FailureReason = "rule-unmet" | "timeout" | "player-left" | null;
 export type TimerHandle = ReturnType<typeof setTimeout>;
 
 export interface Seat {
   id: SeatId;
   kind: SeatKind;
   nick: string | null;
+  avatar?: string | null;
   agentId?: string;
   connected: boolean;
   socketId?: string;
@@ -53,6 +54,7 @@ export interface PlacedCard {
   color: CardColor;
   revealed: boolean;
   placedAt: number;
+  playOrder: number;
 }
 
 export interface PublicPlacedCard {
@@ -62,6 +64,7 @@ export interface PublicPlacedCard {
   value?: number;
   color?: CardColor;
   placedAt: number;
+  playOrder: number;
 }
 
 export interface HintMarkers {
@@ -86,15 +89,17 @@ export interface ChatMessage {
 }
 
 export interface TimerState {
-  kind: "discussion" | "turn" | "hint" | "reveal";
+  kind: "levelSelect" | "discussion" | "turn" | "hint" | "reveal";
   deadline: number;
 }
 
 export interface TimerHandles {
+  levelSelect?: TimerHandle;
   discussion?: TimerHandle;
   turn?: TimerHandle;
   hint?: TimerHandle;
   reveal?: TimerHandle;
+  hostStart?: TimerHandle;
 }
 
 export interface GameRoom {

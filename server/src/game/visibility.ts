@@ -22,6 +22,7 @@ export const publicRoomState = (room: GameRoom): PublicRoomState => ({
         owner: card.owner,
         revealed: card.revealed,
         placedAt: card.placedAt,
+        playOrder: card.playOrder,
         ...(visible ? { value: card.value, color: card.color } : {})
       };
     })

@@ -10,4 +10,28 @@ describe("loadLevels", () => {
     expect(levelWithOrder?.conditions).toContainEqual({ type: "placement-order", order: 1, segment: 2 });
     expect(levelWithOrder?.conditions).toContainEqual({ type: "segment-colors", segment: 3, black: 1, white: 1 });
   });
+
+  it("derives each permanent global rule exactly once", () => {
+    for (const level of loadLevels()) {
+      const globalRuleKeys = level.conditions
+        .filter(
+          (condition) =>
+            condition.type === "all-nonempty" ||
+            condition.type === "max-sum-each" ||
+            (condition.type === "non-decreasing" &&
+              condition.segments.length === 6 &&
+              condition.segments.every((segment, index) => segment === index))
+        )
+        .map((condition) => JSON.stringify(condition));
+
+      expect(new Set(globalRuleKeys).size).toBe(globalRuleKeys.length);
+    }
+  });
+
+  it("keeps an explicit infinite center cap free of max-sum rules", () => {
+    const level = loadLevels().find((candidate) => candidate.id === "level-01");
+
+    expect(level?.centerCap).toBe("inf");
+    expect(level?.conditions.some((condition) => condition.type === "max-sum-each")).toBe(false);
+  });
 });

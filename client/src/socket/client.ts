@@ -34,9 +34,20 @@ socket.on("disconnect", () => notify("reconnecting"));
 socket.io.on("reconnect", () => notify("connected"));
 socket.io.on("reconnect_failed", () => notify("disconnected"));
 
+// Stamps credentials onto the Manager's handshake query so that automatic
+// transport-level reconnects can re-attach the held seat.
+export function setReconnectCredentials(nick: string, password: string) {
+  (socket.io as unknown as { opts: { query: Record<string, string> } }).opts.query = { nick, password };
+}
+
+export function clearReconnectCredentials() {
+  (socket.io as unknown as { opts: { query: Record<string, string> } }).opts.query = {};
+}
+
 export function connect(nick?: string) {
   if (nick) {
-    (socket.io as unknown as { opts: { query: Record<string, string> } }).opts.query = { nick };
+    const password = window.sessionStorage.getItem("takeTime.roomPassword");
+    if (password) setReconnectCredentials(nick, password);
   }
   notify("connecting");
   socket.connect();

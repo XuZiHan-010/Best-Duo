@@ -41,8 +41,211 @@ const hasSubsetSum = (cards: SolverCard[], min: number, max: number, maxCards = 
   return false;
 };
 
+const isFullNonDecreasingRule = (condition: Condition) =>
+  condition.type === "non-decreasing" && condition.segments.length === 6 && condition.segments.every((segment, index) => segment === index);
+
+const trySolvePermanentGlobalRules = (conditions: Condition[], cards: SolverCard[]): SolveResult | null => {
+  const allowed = conditions.every(
+    (condition) => condition.type === "all-nonempty" || condition.type === "max-sum-each" || isFullNonDecreasingRule(condition)
+  );
+  if (!allowed || !conditions.some(isFullNonDecreasingRule) || !conditions.some((condition) => condition.type === "all-nonempty")) return null;
+
+  const maxSumEach = conditions.find((condition) => condition.type === "max-sum-each");
+  const cap = maxSumEach?.type === "max-sum-each" ? maxSumEach.value : Number.POSITIVE_INFINITY;
+  if (cards.length < 6 || cards.some((card) => card.value > cap)) return { solvable: false };
+
+  const indexedCards = cards
+    .map((card, originalIndex) => ({ ...card, originalIndex }))
+    .sort((a, b) => b.value - a.value);
+  const sums = Array.from({ length: 6 }, () => 0);
+  const counts = Array.from({ length: 6 }, () => 0);
+  const assignments = Array.from({ length: cards.length }, () => -1);
+  const failed = new Set<string>();
+  const preferredSegments = [5, 4, 3, 2, 1, 0];
+
+  const search = (index: number): boolean => {
+    if (index === indexedCards.length) {
+      return counts.every((count) => count > 0) && sums.every((sum, segment) => segment === 0 || sums[segment - 1] <= sum);
+    }
+
+    const remainingAfter = indexedCards.length - index - 1;
+    const emptyBefore = counts.filter((count) => count === 0).length;
+    const key = `${index}|${sums.join(",")}|${counts.map((count) => (count > 0 ? 1 : 0)).join("")}`;
+    if (failed.has(key)) return false;
+
+    const card = indexedCards[index];
+    for (const segment of preferredSegments) {
+      const wasEmpty = counts[segment] === 0;
+      if (wasEmpty && emptyBefore - 1 > remainingAfter) continue;
+      if (sums[segment] + card.value > cap) continue;
+
+      sums[segment] += card.value;
+      counts[segment] += 1;
+      assignments[card.originalIndex] = segment;
+
+      if (search(index + 1)) return true;
+
+      assignments[card.originalIndex] = -1;
+      counts[segment] -= 1;
+      sums[segment] -= card.value;
+    }
+
+    failed.add(key);
+    return false;
+  };
+
+  return search(0) ? { solvable: true, assignments } : { solvable: false };
+};
+
+const isSubsetSolverCondition = (condition: Condition) =>
+  condition.type === "all-nonempty" ||
+  condition.type === "max-sum-each" ||
+  isFullNonDecreasingRule(condition) ||
+  condition.type === "min-cards" ||
+  condition.type === "max-cards" ||
+  condition.type === "exact-cards" ||
+  condition.type === "sum-equals" ||
+  condition.type === "sum-range" ||
+  condition.type === "parity" ||
+  condition.type === "placement-order" ||
+  condition.type === "segment-colors" ||
+  condition.type === "all-distinct";
+
+const trySubsetPartitionSolve = (conditions: Condition[], cards: SolverCard[], seatIds: SeatId[]): SolveResult | null => {
+  if (cards.length > 20 || !conditions.every(isSubsetSolverCondition) || !conditions.some(isFullNonDecreasingRule)) return null;
+
+  const maxSumEach = conditions.find((condition) => condition.type === "max-sum-each");
+  const cap = maxSumEach?.type === "max-sum-each" ? maxSumEach.value : Number.POSITIVE_INFINITY;
+  const subsetCount = 1 << cards.length;
+  const subsetSums = Array.from({ length: subsetCount }, () => 0);
+  const subsetCounts = Array.from({ length: subsetCount }, () => 0);
+  const subsetBlackCounts = Array.from({ length: subsetCount }, () => 0);
+  const subsetWhiteCounts = Array.from({ length: subsetCount }, () => 0);
+  const subsetDistinct = Array.from({ length: subsetCount }, () => true);
+
+  for (let mask = 1; mask < subsetCount; mask += 1) {
+    const bit = mask & -mask;
+    const cardIndex = Math.trunc(Math.log2(bit));
+    const previous = mask ^ bit;
+    const card = cards[cardIndex];
+    subsetSums[mask] = subsetSums[previous] + card.value;
+    subsetCounts[mask] = subsetCounts[previous] + 1;
+    subsetBlackCounts[mask] = subsetBlackCounts[previous] + (card.color === "black" ? 1 : 0);
+    subsetWhiteCounts[mask] = subsetWhiteCounts[previous] + (card.color === "white" ? 1 : 0);
+    subsetDistinct[mask] = subsetDistinct[previous] && !cards.some((other, index) => index !== cardIndex && (previous & (1 << index)) !== 0 && other.value === card.value);
+  }
+
+  const validMasksBySegment = segments.map((segment) => {
+    const masks: number[] = [];
+    for (let mask = 1; mask < subsetCount; mask += 1) {
+      if (subsetSums[mask] > cap) continue;
+      let valid = true;
+      for (const condition of conditions) {
+        switch (condition.type) {
+          case "min-cards":
+            if (condition.segment === segment && subsetCounts[mask] < condition.count) valid = false;
+            break;
+          case "max-cards":
+            if (condition.segment === segment && subsetCounts[mask] > condition.count) valid = false;
+            break;
+          case "exact-cards":
+            if (condition.segment === segment && subsetCounts[mask] !== condition.count) valid = false;
+            break;
+          case "sum-equals":
+            if (condition.segment === segment && subsetSums[mask] !== condition.value) valid = false;
+            break;
+          case "sum-range":
+            if (condition.segment === segment && (subsetSums[mask] < condition.min || subsetSums[mask] > condition.max)) valid = false;
+            break;
+          case "parity":
+            if (condition.segment === segment) {
+              const odd = Math.abs(subsetSums[mask] % 2) === 1;
+              if (condition.parity === "odd" ? !odd : odd) valid = false;
+            }
+            break;
+          case "segment-colors":
+            if (condition.segment === segment && (subsetBlackCounts[mask] !== condition.black || subsetWhiteCounts[mask] !== condition.white)) {
+              valid = false;
+            }
+            break;
+          case "all-distinct":
+            if (condition.segment === segment && !subsetDistinct[mask]) valid = false;
+            break;
+        }
+        if (!valid) break;
+      }
+      if (valid) masks.push(mask);
+    }
+    return masks.sort((a, b) => subsetSums[a] - subsetSums[b]);
+  });
+
+  const fullMask = subsetCount - 1;
+  const state = createState(seatIds);
+  const assignments = Array.from({ length: cards.length }, () => -1);
+  const failed = new Set<string>();
+
+  const addMask = (mask: number, segment: number) => {
+    for (let index = 0; index < cards.length; index += 1) {
+      if ((mask & (1 << index)) === 0) continue;
+      assignments[index] = segment;
+      addCard(state, cards[index], segment);
+    }
+  };
+
+  const removeMask = (mask: number, segment: number) => {
+    for (let index = cards.length - 1; index >= 0; index -= 1) {
+      if ((mask & (1 << index)) === 0) continue;
+      const sameValueCount = assignments.filter(
+        (assignedSegment, otherIndex) => assignedSegment === segment && cards[otherIndex].value === cards[index].value
+      ).length;
+      assignments[index] = -1;
+      removeCard(state, cards[index], segment, sameValueCount > 1);
+    }
+  };
+
+  const search = (segment: number, usedMask: number, previousSum: number): boolean => {
+    if (segment === 6) {
+      return usedMask === fullMask && passesFinalConditions(state, conditions, seatIds);
+    }
+
+    const remainingMask = fullMask ^ usedMask;
+    const key = `${segment}|${usedMask}|${previousSum}`;
+    if (failed.has(key)) return false;
+
+    const candidates = segment === 5 ? [remainingMask] : validMasksBySegment[segment];
+    for (const mask of candidates) {
+      if (mask === 0 || (mask & usedMask) !== 0 || (mask & remainingMask) !== mask) continue;
+      if (subsetSums[mask] < previousSum || !validMasksBySegment[segment].includes(mask)) continue;
+
+      const nextUsedMask = usedMask | mask;
+      const nextRemainingMask = fullMask ^ nextUsedMask;
+      const futureSegments = 5 - segment;
+      if (subsetCounts[nextRemainingMask] < futureSegments) continue;
+      if (futureSegments > 0) {
+        const remainingSum = subsetSums[nextRemainingMask];
+        if (remainingSum < subsetSums[mask] * futureSegments) continue;
+        if (Number.isFinite(cap) && remainingSum > cap * futureSegments) continue;
+      }
+
+      addMask(mask, segment);
+      if (search(segment + 1, nextUsedMask, subsetSums[mask])) return true;
+      removeMask(mask, segment);
+    }
+
+    failed.add(key);
+    return false;
+  };
+
+  return search(0, 0, 0) ? { solvable: true, assignments } : { solvable: false };
+};
+
 const tryFastSolve = (challenge: Challenge, cards: SolverCard[], seatIds: SeatId[]): SolveResult | null => {
   const conditions = challenge.conditions;
+  const globalRules = trySolvePermanentGlobalRules(conditions, cards);
+  if (globalRules) return globalRules;
+  const subsetSolve = trySubsetPartitionSolve(conditions, cards, seatIds);
+  if (subsetSolve) return subsetSolve;
+
   const nonCenterConditions = conditions.filter((condition) => condition.type !== "max-sum-each");
   const maxSumEach = conditions.find((condition) => condition.type === "max-sum-each");
   const total = cards.reduce((sum, card) => sum + card.value, 0);
@@ -332,14 +535,29 @@ export const canSolveDeal = (challenge: Challenge, cards: SolverCard[], seatIds:
   const fast = tryFastSolve(challenge, cards, seatIds);
   if (fast) return fast;
 
-  const segmentOrder = getTargetSegments(conditions);
+  const segmentOrder = conditions.some(isFullNonDecreasingRule) ? [5, 4, 3, 2, 1, 0] : getTargetSegments(conditions);
   const sortedCards = [...cards].sort((a, b) => b.value - a.value);
   const state = createState(seatIds);
+  const failed = new Set<string>();
+
+  const memoKey = (index: number) =>
+    [
+      index,
+      state.sums.join(","),
+      state.counts.join(","),
+      state.blackCounts.join(","),
+      state.whiteCounts.join(","),
+      seatIds.map((seatId) => state.ownerSegmentCounts[seatId].join(",")).join("|"),
+      state.valueSets.map((values) => [...values].sort((a, b) => a - b).join(",")).join("|")
+    ].join(";");
 
   const search = (index: number): boolean => {
     if (index === sortedCards.length) {
       return passesFinalConditions(state, conditions, seatIds);
     }
+
+    const key = memoKey(index);
+    if (failed.has(key)) return false;
 
     const card = sortedCards[index];
     for (const segment of segmentOrder) {
@@ -351,6 +569,7 @@ export const canSolveDeal = (challenge: Challenge, cards: SolverCard[], seatIds:
       removeCard(state, card, segment, hadValueBefore);
     }
 
+    failed.add(key);
     return false;
   };
 

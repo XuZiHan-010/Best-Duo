@@ -38,7 +38,11 @@ export function Chat({ messages, mySeatId }: ChatProps) {
         {messages.map((msg) => (
           <li
             key={msg.id}
-            className={`chat__msg${msg.senderSeatId === mySeatId ? " chat__msg--mine" : ""}`}
+            className={[
+              "chat__msg",
+              msg.senderSeatId === mySeatId ? "chat__msg--mine" : "",
+              msg.kind === "agent" ? "chat__msg--bot" : "",
+            ].filter(Boolean).join(" ")}
           >
             <span className="chat__nick">{msg.nick}：</span>
             <span className="chat__text">{msg.text}</span>
@@ -52,6 +56,7 @@ export function Chat({ messages, mySeatId }: ChatProps) {
         </label>
         <input
           id="chat-input"
+          name="chat-message"
           className="chat__input"
           type="text"
           value={text}

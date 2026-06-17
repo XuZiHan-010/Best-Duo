@@ -1,10 +1,12 @@
 import React from "react";
 import type { SeatId } from "@take-time/shared";
 import { Button } from "./Button.js";
+import { Avatar } from "./Avatar.js";
 
 interface PlayerSeatProps {
   id: SeatId;
   nick: string | null;
+  avatar?: string | null;
   isHost: boolean;
   isReady: boolean;
   isMe: boolean;
@@ -16,6 +18,7 @@ interface PlayerSeatProps {
 export function PlayerSeat({
   id,
   nick,
+  avatar,
   isHost,
   isReady,
   isMe,
@@ -40,9 +43,12 @@ export function PlayerSeat({
         )}
       </div>
 
-      <p className={`player-seat__nick${isEmpty ? " player-seat__nick--empty" : ""}`}>
-        {isEmpty ? "等待加入…" : nick}
-      </p>
+      <div className="player-seat__identity">
+        {!isEmpty && <Avatar src={avatar} nick={nick} size={80} />}
+        <p className={`player-seat__nick${isEmpty ? " player-seat__nick--empty" : ""}`}>
+          {isEmpty ? "等待加入…" : nick}
+        </p>
+      </div>
 
       {isMe && !isEmpty && (
         <div className="player-seat__actions">

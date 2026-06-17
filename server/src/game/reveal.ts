@@ -27,4 +27,13 @@ export const failByTimeout = (room: GameRoom) => {
   room.failureReason = "timeout";
   room.revealResult = null;
   room.phaseVersion += 1;
+  room.timer = null;
+};
+
+export const failByPlayerLeft = (room: GameRoom) => {
+  room.phase = "result";
+  room.failureReason = "player-left";
+  room.revealResult = null;
+  room.phaseVersion += 1;
+  room.timer = null;
 };

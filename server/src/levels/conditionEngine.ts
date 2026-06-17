@@ -56,10 +56,10 @@ const evaluateOne = (
       return { condition, pass, message: `${label(condition.a)} 与 ${label(condition.b)} 总和差不超过 ${condition.maxDiff}` };
     }
     case "placement-order": {
-      // 按出牌时间排序所有已放置的牌，取第 order 张（1 起）看它落在哪个区段。
+      // 按服务端单调出牌序号排序，取第 order 张（1 起）看它落在哪个区段。
       const ordered = placements
-        .flatMap((cards, segment) => cards.map((card) => ({ segment, placedAt: card.placedAt })))
-        .sort((a, b) => a.placedAt - b.placedAt);
+        .flatMap((cards, segment) => cards.map((card) => ({ segment, playOrder: card.playOrder })))
+        .sort((a, b) => a.playOrder - b.playOrder);
       const target = ordered[condition.order - 1];
       const pass = target !== undefined && target.segment === condition.segment;
       return { condition, pass, message: `第 ${condition.order} 张打出的牌在 ${label(condition.segment)}` };

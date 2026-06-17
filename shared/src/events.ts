@@ -13,6 +13,7 @@ export const ClientEvents = {
   HintDecide: "hint:decide",
   GameRetry: "game:retry",
   GameNext: "game:next",
+  GameEnd: "game:end",
   HostBackToLevelSelect: "host:backToLevelSelect",
   GameContinueToResult: "game:continueToResult",
   RoomReset: "room:reset"
@@ -23,7 +24,8 @@ export const ServerEvents = {
   PlayerHand: "player:hand",
   RoomError: "room:error",
   TimerSync: "timer:sync",
-  GameResult: "game:result"
+  GameResult: "game:result",
+  GameEnded: "game:ended"
 } as const;
 
 export type ClientEventName = (typeof ClientEvents)[keyof typeof ClientEvents];
@@ -31,6 +33,8 @@ export type ServerEventName = (typeof ServerEvents)[keyof typeof ServerEvents];
 
 export interface PlayerJoinPayload {
   nick: string;
+  avatar?: string | null;
+  password: string;
 }
 
 export interface SettingsUpdatePayload extends Partial<RoomSettings> {}

@@ -2,6 +2,9 @@ import React from "react";
 import { useRoomStore } from "../store/useRoomStore.js";
 import { mySeatIdSelector, hintLeftSelector } from "../store/selectors.js";
 import { formatMmSs } from "../lib/timeFmt.js";
+import { adapter } from "../socket/adapter.js";
+
+const GAME_FLOW_PHASES = new Set(["levelSelect", "discussion", "placing", "reveal", "result"]);
 
 const PHASE_LABEL: Record<string, string> = {
   waiting:     "待机中",
@@ -27,6 +30,7 @@ export function TopBar() {
   const hintLeft   = useRoomStore(hintLeftSelector);
 
   const [remaining, setRemaining] = React.useState<number | null>(null);
+  const [confirmingEnd, setConfirmingEnd] = React.useState(false);
   React.useEffect(() => {
     if (!timer) { setRemaining(null); return; }
     const tick = () => setRemaining(Math.max(0, timer.deadline - Date.now()));
@@ -36,7 +40,7 @@ export function TopBar() {
   }, [timer]);
 
   const phase    = roomState?.phase ?? null;
-  const levelIdx = roomState?.currentLevelIndex;
+  const levelNum = roomState?.currentChallenge?.levelIndex ?? roomState?.currentLevelIndex;
   const seats    = roomState?.seats ?? [];
   const ready    = roomState?.ready ?? {};
   const host     = roomState?.host ?? null;
@@ -46,11 +50,11 @@ export function TopBar() {
   const isDanger  = connState === "disconnected";
 
   return (
-    <header className="topbar">
-      <span className="topbar__brand">◷ CARD GAME</span>
+    <header className={`topbar${phase === "placing" ? " topbar--placing" : ""}`}>
+      <span className="topbar__brand">◷ BEST DUO</span>
 
-      {levelIdx != null && (
-        <span className="topbar__level mono">第 {levelIdx + 1} 关</span>
+      {levelNum != null && (
+        <span className="topbar__level mono">第 {levelNum} 关</span>
       )}
 
       {phase && (
@@ -90,6 +94,33 @@ export function TopBar() {
         >
           ⏱ {formatMmSs(remaining)}
         </span>
+      )}
+
+      {phase && GAME_FLOW_PHASES.has(phase) && (
+        confirmingEnd ? (
+          <span className="topbar__end-confirm">
+            <span className="topbar__end-confirm-text">确认结束游戏？</span>
+            <button
+              className="btn btn--danger topbar__end-btn"
+              onClick={() => { adapter.endGame(); setConfirmingEnd(false); }}
+            >
+              确认
+            </button>
+            <button
+              className="btn btn--ghost topbar__end-btn"
+              onClick={() => setConfirmingEnd(false)}
+            >
+              取消
+            </button>
+          </span>
+        ) : (
+          <button
+            className="topbar__end-btn btn btn--danger"
+            onClick={() => setConfirmingEnd(true)}
+          >
+            结束游戏
+          </button>
+        )
       )}
 
       {connLabel && (

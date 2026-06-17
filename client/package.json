@@ -6,11 +6,13 @@
   "scripts": {
     "build": "tsc -p tsconfig.json && vite build",
     "dev": "vite --host 0.0.0.0",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@take-time/shared": "0.1.0",
     "@vitejs/plugin-react": "^4.3.1",
+    "better-icons": "github:better-auth/better-icons",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "socket.io-client": "^4.7.5",
@@ -19,6 +21,7 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@playwright/test": "^1.47.0",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0"
   }

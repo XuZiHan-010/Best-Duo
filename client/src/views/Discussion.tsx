@@ -12,6 +12,8 @@ export function Discussion() {
   const roomState = useRoomStore((s) => s.roomState);
   const isHost    = useRoomStore(isHostSelector);
   const mySeatId  = useRoomStore(mySeatIdSelector);
+  const connState = useRoomStore((s) => s.connectionState);
+  const isOffline = connState === "reconnecting" || connState === "disconnected";
   const [rulesAccepted, setRulesAccepted] = useState(false);
 
   if (!roomState?.currentChallenge) {
@@ -25,6 +27,7 @@ export function Discussion() {
       <LevelRulesIntro
         levelName={currentChallenge.name}
         difficulty={currentChallenge.difficulty}
+        centerCap={currentChallenge.centerCap}
         conditions={currentChallenge.conditions}
         onAccept={() => setRulesAccepted(true)}
       />
@@ -39,11 +42,13 @@ export function Discussion() {
           <ClockBoard
             centerCap={currentChallenge.centerCap}
             placements={placements}
+            conditions={currentChallenge.conditions}
           />
           {isHost && (
             <button
               className="btn btn--ghost discussion__begin-btn"
               onClick={() => adapter.beginPlacement()}
+              disabled={isOffline}
             >
               ▶ 提前开始出牌
             </button>
@@ -51,6 +56,11 @@ export function Discussion() {
           {!isHost && (
             <p className="view-stub" style={{ fontSize: 13 }}>
               等待房主或倒计时结束…
+            </p>
+          )}
+          {isOffline && (
+            <p className="view-stub" style={{ fontSize: 13 }}>
+              正在恢复连接，操作暂停…
             </p>
           )}
         </div>

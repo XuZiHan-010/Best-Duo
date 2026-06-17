@@ -30,7 +30,8 @@ export interface Challenge {
   levelIndex: number;
   difficulty: string;
   segmentCount: 6;
-  centerCap: number | null;
+  // 每区段总和上限（时钟中心值）。number = 该上限；null/省略 = 官方默认 24；"inf" = ∞（无上限，教学关用）。
+  centerCap: number | "inf" | null;
   playable: boolean;
   conditions: Condition[];
   notes?: string;

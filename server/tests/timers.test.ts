@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ProgressState } from "@take-time/shared";
 import { defaultSettings } from "../src/config.js";
+import { failByTimeout } from "../src/game/reveal.js";
 import { createGameRoom } from "../src/game/room.js";
 import { clearAllTimers, startTurnTimer } from "../src/game/timers.js";
 
@@ -33,6 +34,22 @@ describe("timers", () => {
     startTurnTimer(room, current);
     vi.advanceTimersByTime(defaultSettings.thinkSeconds * 1_000);
     expect(current).toHaveBeenCalledTimes(1);
+
+    clearAllTimers(room);
+  });
+
+  it("fails by timeout when the active turn timer expires", () => {
+    vi.useFakeTimers();
+    const room = createGameRoom(progress, 4);
+    room.phase = "placing";
+    room.turn = "B";
+
+    startTurnTimer(room, () => failByTimeout(room));
+    vi.advanceTimersByTime(defaultSettings.thinkSeconds * 1_000);
+
+    expect(room.phase).toBe("result");
+    expect(room.failureReason).toBe("timeout");
+    expect(room.revealResult).toBeNull();
 
     clearAllTimers(room);
   });

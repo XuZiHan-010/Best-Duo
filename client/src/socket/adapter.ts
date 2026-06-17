@@ -49,4 +49,7 @@ export const adapter = {
   backToLevelSelect() {
     socket.emit(ClientEvents.HostBackToLevelSelect);
   },
+  endGame() {
+    socket.emit(ClientEvents.GameEnd);
+  },
 };

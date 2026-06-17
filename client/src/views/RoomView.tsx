@@ -35,6 +35,7 @@ export function RoomView() {
 
   return (
     <div className="room-view">
+      <a href="#main-content" className="skip-link">跳到主内容</a>
       <TopBar />
       {showToast && (
         <div className="toast toast--error" role="alert">
@@ -42,7 +43,7 @@ export function RoomView() {
           <button onClick={clearError} aria-label="关闭错误提示">✕</button>
         </div>
       )}
-      <main className="room-view__main">
+      <main id="main-content" className="room-view__main">
         <PhaseView />
       </main>
     </div>

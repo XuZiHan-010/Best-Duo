@@ -6,7 +6,7 @@ import {
   type RoomErrorPayload,
   type TimerState,
 } from "@take-time/shared";
-import { socket, onConnectionChange, type ConnectionState } from "../socket/client.js";
+import { socket, onConnectionChange, clearReconnectCredentials, type ConnectionState } from "../socket/client.js";
 
 export interface RoomStore {
   roomState: PublicRoomState | null;
@@ -50,7 +50,18 @@ socket.on(ServerEvents.RoomState, (s: PublicRoomState) => {
   if (store.roomState?.phase !== s.phase) {
     store.setTimer(null);
   }
+
+  // 若之前已确认在座，但新状态不含当前昵称，说明被踢出或座位已释放，退回登录页
+  const { myNick, roomState: prev } = store;
+  const wasConfirmed = Boolean(myNick && prev?.seats.some((seat) => seat.nick === myNick));
+  const stillConfirmed = Boolean(myNick && s.seats.some((seat) => seat.nick === myNick));
+
   store.setRoomState(s);
+
+  if (wasConfirmed && !stillConfirmed) {
+    store.clearMyNick();
+    clearReconnectCredentials();
+  }
 });
 
 socket.on(ServerEvents.PlayerHand, (h: PublicHandCard[]) => {
@@ -59,6 +70,15 @@ socket.on(ServerEvents.PlayerHand, (h: PublicHandCard[]) => {
 
 socket.on(ServerEvents.TimerSync, (t: TimerState) => {
   useRoomStore.getState().setTimer(t);
+});
+
+socket.on(ServerEvents.GameEnded, () => {
+  const store = useRoomStore.getState();
+  store.clearMyNick();
+  store.setMyHand([]);
+  store.setTimer(null);
+  store.setRoomState(null);
+  clearReconnectCredentials();
 });
 
 socket.on(ServerEvents.RoomError, (e: RoomErrorPayload) => {

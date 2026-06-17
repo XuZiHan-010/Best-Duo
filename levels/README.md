@@ -10,27 +10,28 @@
 - **区段编号 1–6**（人类口径）；实现内部对应 `placements` 索引 0–5，即区段 `k` = `placements[k-1]`。
 - **牌库为全局固定的 24 张**：白色 1–12 + 黑色 1–12（数值 + 颜色两个维度）。每局**随机抽 12 张**发牌，每人 6 张（见 [rules.md](../rules.md)、`server/src/game/deal.ts`）；关卡不再各自携带 `deck`。
 - **发牌前做可解性校验**：抽到的 12 张牌经 `server/src/game/solver.ts` 验证至少存在一种满足本关条件的放置方案后才发出；无解则重抽。可用 `npm run assess:levels` 评估各关的随机可解率。
-- 所有 12 张牌必须放完才能揭示；“放满 6 区间”指每个区段至少有 1 张牌。
-- **时钟中心值 `centerCap`**：关卡级字段，`number | null`。`null` = **∞（每区段无上限）**；数字（如 `24`）= **每个区段总和 ≤ 该值**，揭示时任一区段超出即失败（见 [rules.md · 时钟中心值](../rules.md)）。前端显示在钟面中心；引擎按「每段 ≤ centerCap」校验（等价于下表 `max-sum-each`）。关卡 md 省略该字段时按 `null`/∞ 处理。
+- 所有 12 张牌必须放完才能揭示；每个区段至少有 1 张牌是永久通用规则。
+- **永久通用规则**：每关都会自动叠加「区段总和从 1 到 6 非递减」+「每段至少 1 张」+「每段总和不超过中心值」。
+- **时钟中心值 `centerCap`**：关卡级字段，`number | "inf" | null`。`null` 或省略 = **默认 24**；`"inf"` = **∞（每区段无上限）**；数字（如 `20`）= **每个区段总和 ≤ 该值**。前端显示在钟面中心；加载器按该字段自动派生 `max-sum-each`，`"inf"` 时不派生上限条件。
 
 ## 条件类型词汇（供条件引擎）
 
 | type | 含义 |
 | --- | --- |
-| `all-nonempty` | 所有区段至少 1 张牌（空间目标） |
+| `all-nonempty` | 所有区段至少 1 张牌（永久通用规则） |
 | `min-cards { segment, count }` | 某区段至少 count 张 |
 | `max-cards { segment, count }` | 某区段至多 count 张 |
 | `exact-cards { segment, count }` | 某区段恰好 count 张 |
 | `sum-equals { segment, value }` | 某区段总和等于 value |
 | `sum-range { segment, min, max }` | 某区段总和落在 [min, max] |
 | `parity { segment, parity: 'odd'|'even' }` | 某区段总和的奇偶 |
-| `non-decreasing { segments: [...] }` | 列出的区段总和依次非递减（≤） |
+| `non-decreasing { segments: [...] }` | 列出的区段总和依次非递减（≤）；全 6 段版本是永久通用规则 |
 | `non-increasing { segments: [...] }` | 列出的区段总和依次非递增（≥） |
 | `adjacent-diff { a, b, maxDiff }` | 相邻两区段总和差值限制 |
 | `placement-order { order, segment }` | 第 `order` 张打出的牌（1 起）必须落在 `segment`（按出牌时间判定） |
 | `segment-colors { segment, black, white }` | 某区段恰好包含 `black` 张黑牌 + `white` 张白牌 |
 | `all-distinct { segment }` | 某区段内各牌数值互不相同（不限张数） |
-| `max-sum-each { value }` | **每个**区段总和 ≤ value（时钟中心值 `centerCap` 的引擎表示；`centerCap` 非 null 时由加载器自动派生，一般无需手写） |
+| `max-sum-each { value }` | **每个**区段总和 ≤ value（时钟中心值 `centerCap` 的引擎表示；`centerCap` 不是 `"inf"` 时由加载器自动派生，一般无需手写） |
 
 > 词汇可按需扩展；新增类型时同步更新本表和条件引擎。
 
@@ -50,10 +51,10 @@
 
 | 关 | 难度 | 一句话条件 | 状态 |
 | --- | --- | --- | --- |
-| [第 1 关](level-01.md) | ★★ | 各区段总和非递减（区1 ≤ 区2 ≤ … ≤ 区6） | 已设计 |
-| [第 2 关](level-02.md) | ★★★ | 区2 总和 12–16 点 + 区6 最多 3 张牌 | 已设计 |
-| [第 3 关](level-03.md) | ★★★★ | 第1张落区3、第2张落区2 + 区4 恰好一黑一白 | 已设计 |
-| [第 4 关](level-04.md) | ★★★★★ | 区2 总和恰好 8 + 区6 内各牌数值互不相同（不限张数） | 已设计 |
+| [第 1 关](level-01.md) | ★ | 教学关：只使用三条永久通用规则，中心值为 ∞ | 已设计 |
+| [第 2 关](level-02.md) | ★ | 区2 总和 12–16 点 + 区6 恰好 3 张牌（中心值 ∞） | 已设计 |
+| [第 3 关](level-03.md) | ★ | 第1张落区3、第2张落区2 + 区4 恰好一黑一白（中心值 ∞） | 已设计 |
+| [第 4 关](level-04.md) | ★ | 区2 总和恰好 8 + 区6 内各牌数值互不相同（不限张数） | 已设计 |
 | … | | 后续关卡待补充 | 待补 |
 
 > 总关卡数（如 40 关）随关卡内容确定。

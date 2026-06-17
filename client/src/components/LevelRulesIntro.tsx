@@ -5,6 +5,7 @@ import { ConditionList } from "./ConditionList.js";
 interface LevelRulesIntroProps {
   levelName: string;
   difficulty: string;
+  centerCap: number | "inf" | null;
   conditions: Condition[];
   onAccept: () => void;
 }
@@ -12,6 +13,7 @@ interface LevelRulesIntroProps {
 export function LevelRulesIntro({
   levelName,
   difficulty,
+  centerCap,
   conditions,
   onAccept,
 }: LevelRulesIntroProps) {
@@ -20,6 +22,11 @@ export function LevelRulesIntro({
   useEffect(() => {
     btnRef.current?.focus();
   }, []);
+
+  const capText =
+    centerCap === "inf"
+      ? "∞（无上限）"
+      : `≤ ${centerCap ?? 24}`;
 
   return (
     <div
@@ -33,9 +40,23 @@ export function LevelRulesIntro({
           本关规则 · {levelName} {difficulty}
         </h2>
 
-        <section aria-label="胜利条件">
-          <ConditionList conditions={conditions} />
+        {/* 全局永久规则（每关固定） */}
+        <section aria-label="全局永久规则" className="level-rules-intro__global">
+          <h3 className="level-rules-intro__section-title">全局规则（每关固定）</h3>
+          <ul className="level-rules-intro__global-list">
+            <li>所有区段至少 1 张牌</li>
+            <li>区1 ≤ 区2 ≤ 区3 ≤ 区4 ≤ 区5 ≤ 区6 依次非递减</li>
+            <li>每区段总和 {capText}</li>
+          </ul>
         </section>
+
+        {/* 本关特殊条件 */}
+        {conditions.length > 0 && (
+          <section aria-label="本关特殊条件">
+            <h3 className="level-rules-intro__section-title">本关特殊条件</h3>
+            <ConditionList conditions={conditions} />
+          </section>
+        )}
 
         <hr className="level-rules-intro__divider" />
 

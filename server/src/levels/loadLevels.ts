@@ -26,14 +26,30 @@ const normalizeCondition = (condition: Condition): Condition => {
   }
 };
 
+const globalConditionsForLevel = (level: Challenge): Condition[] => {
+  const centerCap = level.centerCap as number | "inf" | null;
+  return [
+    { type: "non-decreasing", segments: [0, 1, 2, 3, 4, 5] },
+    { type: "all-nonempty" },
+    ...(centerCap === "inf" ? [] : ([{ type: "max-sum-each", value: centerCap ?? 24 }] as Condition[]))
+  ];
+};
+
+const sameCondition = (a: Condition, b: Condition): boolean => JSON.stringify(a) === JSON.stringify(b);
+
+const appendMissingGlobalConditions = (conditions: Condition[], level: Challenge): Condition[] => {
+  const next = [...conditions];
+  for (const condition of globalConditionsForLevel(level)) {
+    if (!next.some((existing) => sameCondition(existing, condition))) next.push(condition);
+  }
+  return next;
+};
+
 export const loadLevels = (): Challenge[] =>
   rawLevels.map((level) => {
     if (level.segmentCount !== 6) throw new Error(`Invalid segment count for ${level.id}`);
     return {
       ...level,
-      conditions: [
-        ...level.conditions.map(normalizeCondition),
-        ...(level.centerCap === null ? [] : ([{ type: "max-sum-each", value: level.centerCap }] as Condition[]))
-      ]
+      conditions: appendMissingGlobalConditions(level.conditions.map(normalizeCondition), level)
     };
   });

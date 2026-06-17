@@ -11,7 +11,9 @@ export const ClientEvents = {
     HintDecide: "hint:decide",
     GameRetry: "game:retry",
     GameNext: "game:next",
+    GameEnd: "game:end",
     HostBackToLevelSelect: "host:backToLevelSelect",
+    GameContinueToResult: "game:continueToResult",
     RoomReset: "room:reset"
 };
 export const ServerEvents = {
@@ -19,6 +21,7 @@ export const ServerEvents = {
     PlayerHand: "player:hand",
     RoomError: "room:error",
     TimerSync: "timer:sync",
-    GameResult: "game:result"
+    GameResult: "game:result",
+    GameEnded: "game:ended"
 };
 //# sourceMappingURL=events.js.map

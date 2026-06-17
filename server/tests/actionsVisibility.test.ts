@@ -55,7 +55,7 @@ describe("actions and visibility", () => {
     expect(room.turn).toBe("B");
   });
 
-  it("reveals remaining owner blind cards after that owner has played two cards", () => {
+  it("reveals remaining blind cards only after both players have played two cards", () => {
     const room = makePlacingRoom();
 
     applyPlacement(room, "A", { cardId: room.hands.A![0].id, segment: 0 });
@@ -63,11 +63,18 @@ describe("actions and visibility", () => {
     applyPlacement(room, "B", { cardId: room.hands.B![0].id, segment: 1 });
     applyHintDecision(room, "B", "no");
     applyPlacement(room, "A", { cardId: room.hands.A![0].id, segment: 2 });
+    applyHintDecision(room, "A", "no");
+
+    expect(privateHandForSeat(room, "A").some((card) => card.value === undefined || card.color === undefined)).toBe(true);
+    expect(privateHandForSeat(room, "B").some((card) => card.value === undefined || card.color === undefined)).toBe(true);
+
+    applyPlacement(room, "B", { cardId: room.hands.B![0].id, segment: 3 });
 
     expect(privateHandForSeat(room, "A").every((card) => card.value !== undefined && card.color !== undefined)).toBe(true);
+    expect(privateHandForSeat(room, "B").every((card) => card.value !== undefined && card.color !== undefined)).toBe(true);
   });
 
-  it("randomly hands off a disconnected player's turn", async () => {
+  it("does not randomly hand off a disconnected player's turn", async () => {
     const room = makePlacingRoom();
     room.seats[1].connected = false;
 
@@ -79,10 +86,10 @@ describe("actions and visibility", () => {
     const startTurnTimer = vi.fn();
     await continueTurnOrHandoff(room, { afterRevealIfNeeded, startTurnTimer });
 
-    expect(room.placements.flat()).toHaveLength(2);
-    expect(room.placements.flat().some((card) => card.owner === "B")).toBe(true);
+    expect(room.placements.flat()).toHaveLength(1);
+    expect(room.placements.flat().some((card) => card.owner === "B")).toBe(false);
     expect(room.pendingHint).toBeNull();
-    expect(room.turn).toBe("A");
+    expect(room.turn).toBe("B");
     expect(afterRevealIfNeeded).toHaveBeenCalledTimes(1);
     expect(startTurnTimer).toHaveBeenCalledTimes(1);
   });
