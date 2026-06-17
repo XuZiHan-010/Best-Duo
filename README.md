@@ -1,4 +1,4 @@
-# Take Time Online
+# Best Duo Online
 
 [中文](#take-time-online) | [English](#take-time-online-english)
 
@@ -222,7 +222,7 @@ data/     本地进度数据目录
 
 ---
 
-# Take Time Online English
+# Best Duo Online English
 
 [中文](#take-time-online) | [English](#take-time-online-english)
 
