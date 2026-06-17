@@ -3,6 +3,10 @@
   "compilerOptions": {
     "module": "ESNext",
     "moduleResolution": "Bundler",
+    "baseUrl": ".",
+    "paths": {
+      "@take-time/shared": ["../shared/src/index.ts"]
+    },
     "jsx": "react-jsx",
     "types": ["vite/client"],
     "noEmit": true
