@@ -19,7 +19,7 @@
 
 ```json
 [
-  { "type": "sum-range", "segment": 2, "min": 12, "max": 16 },
+  { "type": "sum-range", "segment": 3, "min": 12, "max": 16 },
   { "type": "exact-cards", "segment": 6, "count": 3 }
 ]
 ```

@@ -4,6 +4,15 @@ import { revealRemainingBlindCardsIfNeeded } from "./deal.js";
 import { totalPlacedCards } from "./room.js";
 import { nextSeatAfter } from "./turnOrder.js";
 
+const continueAfterPlacement = (room: GameRoom, previousSeat: SeatId) => {
+  if (totalPlacedCards(room) >= 12) {
+    room.turn = null;
+  } else {
+    room.turn = nextSeatAfter(room, previousSeat);
+  }
+  room.turnVersion += 1;
+};
+
 export const applyPlacement = (room: GameRoom, seatId: SeatId, payload: CardPlacePayload): PlacedCard => {
   if (room.phase !== "placing") throw new Error("现在不能出牌");
   if (room.pendingHint) throw new Error("请先处理提示标记窗口");
@@ -28,6 +37,12 @@ export const applyPlacement = (room: GameRoom, seatId: SeatId, payload: CardPlac
   room.placements[payload.segment].push(placed);
   room.playedCount[seatId] = (room.playedCount[seatId] ?? 0) + 1;
   revealRemainingBlindCardsIfNeeded(room);
+  if (room.hintMarkers.used >= room.hintMarkers.total) {
+    room.pendingHint = null;
+    continueAfterPlacement(room, seatId);
+    return placed;
+  }
+
   room.pendingHint = {
     seatId,
     cardId: placed.id,
@@ -51,11 +66,5 @@ export const applyHintDecision = (room: GameRoom, seatId: SeatId, decision: Hint
 
   const previousSeat = room.pendingHint.seatId;
   room.pendingHint = null;
-
-  if (totalPlacedCards(room) >= 12) {
-    room.turn = null;
-  } else {
-    room.turn = nextSeatAfter(room, previousSeat);
-  }
-  room.turnVersion += 1;
+  continueAfterPlacement(room, previousSeat);
 };

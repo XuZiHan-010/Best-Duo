@@ -4,7 +4,7 @@ import { resetRoom, setupTwoPlayersInPlacing } from "./helpers.js";
 test.beforeEach(resetRoom);
 
 // Mirrors the server-side visibility masking (see AGENTS.md) on the client:
-// blind cards must never render a value, in text or in any DOM attribute.
+// blind cards may render color, but must never render a value in text or in any DOM attribute.
 test("blind hand cards and unrevealed placed cards never leak their value into the DOM", async ({ browser }) => {
   const { pageA } = await setupTwoPlayersInPlacing(browser);
 

@@ -40,13 +40,13 @@ describe("actions and visibility", () => {
     expect(hand.map((card) => card.color !== undefined)).toEqual([false, true, true, true, true, false]);
   });
 
-  it("hides placed cards until a hint marker reveals them", () => {
+  it("shows placed card color but hides value until a hint marker reveals it", () => {
     const room = makePlacingRoom();
     const cardId = room.hands.A![0].id;
 
     applyPlacement(room, "A", { cardId, segment: 0 });
     expect(publicRoomState(room).placements[0][0]).not.toHaveProperty("value");
-    expect(publicRoomState(room).placements[0][0]).not.toHaveProperty("color");
+    expect(publicRoomState(room).placements[0][0].color).toBeDefined();
 
     applyHintDecision(room, "A", "yes");
     expect(publicRoomState(room).placements[0][0].value).toBeDefined();
@@ -72,6 +72,16 @@ describe("actions and visibility", () => {
 
     expect(privateHandForSeat(room, "A").every((card) => card.value !== undefined && card.color !== undefined)).toBe(true);
     expect(privateHandForSeat(room, "B").every((card) => card.value !== undefined && card.color !== undefined)).toBe(true);
+  });
+
+  it("continues the turn without a hint prompt when no hint markers remain", () => {
+    const room = makePlacingRoom();
+    room.hintMarkers.used = room.hintMarkers.total;
+
+    applyPlacement(room, "A", { cardId: room.hands.A![0].id, segment: 0 });
+
+    expect(room.pendingHint).toBeNull();
+    expect(room.turn).toBe("B");
   });
 
   it("does not randomly hand off a disconnected player's turn", async () => {

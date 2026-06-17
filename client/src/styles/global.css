@@ -629,8 +629,11 @@ input, textarea {
   color: #ECE6D8; border: 1px solid #3a3a5c;
 }
 .placed-card--blind {
+  font-size: 16px;
+}
+.placed-card--blind:not(.placed-card--white):not(.placed-card--black) {
   background: var(--bg-3); color: var(--brass);
-  border: 1.5px solid var(--brass); font-size: 16px;
+  border: 1.5px solid var(--brass);
 }
 /* ── ClockSegment overlay ── */
 .clock-segment-overlay {

@@ -14,11 +14,16 @@ interface ClockSegmentProps {
 }
 
 function PlacedMiniCard({ card }: { card: PublicPlacedCard }) {
-  if (card.revealed && card.color) {
-    const cls = card.color === "white" ? "placed-card placed-card--white" : "placed-card placed-card--black";
-    return <span className={cls}>{card.value}</span>;
-  }
-  return <span className="placed-card placed-card--blind">?</span>;
+  const hasValue = card.value !== undefined;
+  const colorClass = card.color === "white" ? "placed-card--white" : card.color === "black" ? "placed-card--black" : "";
+  const cls = ["placed-card", colorClass, hasValue ? "" : "placed-card--blind"].filter(Boolean).join(" ");
+  const colorLabel = card.color === "white" ? "白牌" : card.color === "black" ? "黑牌" : "暗牌";
+
+  return (
+    <span className={cls} aria-label={hasValue ? `${colorLabel} ${card.value}` : `未揭示${colorLabel}`}>
+      {hasValue ? card.value : "?"}
+    </span>
+  );
 }
 
 export function ClockSegment({

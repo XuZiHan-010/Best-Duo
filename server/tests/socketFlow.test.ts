@@ -183,6 +183,21 @@ describe("socket flow", () => {
     expect(room.placements.flat()).toHaveLength(0);
   });
 
+  it("skips the hint decision window when no hint markers remain", async () => {
+    const { alice, bob } = await joinTwoPlayers();
+    await readyAndEnterLevel(alice, bob);
+    room.hintMarkers.used = room.hintMarkers.total;
+
+    alice.emit(ClientEvents.CardPlace, { cardId: room.hands.A![0].id, segment: 0 });
+    const state = await waitForEvent<PublicRoomState>(alice, ServerEvents.RoomState);
+
+    expect(state.pendingHint).toBeNull();
+    expect(state.turn).toBe("B");
+    expect(room.pendingHint).toBeNull();
+    expect(room.timers.hint).toBeUndefined();
+    expect(room.timer?.kind).toBe("turn");
+  });
+
   it("includes level summaries in public room state", async () => {
     const alice = await connectClient();
 
@@ -349,6 +364,83 @@ describe("socket flow", () => {
       carol.emit(ClientEvents.PlayerJoin, joinPayload("Carol"));
       await waitForEvent(carol, ServerEvents.RoomState);
       expect(room.seats.find((seat) => seat.id === "A")?.nick).toBe("Carol");
+    } finally {
+      mutableConfig.seatHoldMs = originalSeatHoldMs;
+    }
+  });
+
+  it("returns to waiting and keeps the other player when the level-select host misses reconnect", async () => {
+    const mutableConfig = config as { seatHoldMs: number };
+    const originalSeatHoldMs = mutableConfig.seatHoldMs;
+    mutableConfig.seatHoldMs = 50;
+    try {
+      const { alice, bob } = await joinTwoPlayers();
+      alice.emit(ClientEvents.PlayerReady);
+      await waitForEvent(alice, ServerEvents.RoomState);
+      bob.emit(ClientEvents.PlayerReady);
+      await waitForEvent(bob, ServerEvents.RoomState);
+      alice.emit(ClientEvents.GameStart);
+      await waitForEvent(alice, ServerEvents.RoomState);
+
+      expect(room.phase).toBe("levelSelect");
+      expect(room.host).toBe("A");
+
+      alice.disconnect();
+      await waitForCondition(() => room.seats.find((seat) => seat.id === "A")?.connected === false);
+      await waitForCondition(() => room.phase === "waiting" && room.seats.find((seat) => seat.id === "A")?.nick === null);
+
+      expect(room.host).toBe("B");
+      expect(room.ready.B).toBe(true);
+      expect(room.seats.find((seat) => seat.id === "B")?.nick).toBe("Bob");
+      expect(room.seats.find((seat) => seat.id === "B")?.connected).toBe(true);
+      expect(room.currentChallenge).toBeNull();
+      expect(room.currentLevelIndex).toBeNull();
+
+      const rejoinedAlice = await connectClient();
+      rejoinedAlice.emit(ClientEvents.PlayerJoin, joinPayload("Alice"));
+      await waitForEvent(rejoinedAlice, ServerEvents.RoomState);
+
+      expect(room.phase).toBe("waiting");
+      expect(room.seats.some((seat) => seat.nick === "Alice")).toBe(true);
+      expect(room.seats.some((seat) => seat.nick === "Bob")).toBe(true);
+    } finally {
+      mutableConfig.seatHoldMs = originalSeatHoldMs;
+    }
+  });
+
+  it("returns to waiting and keeps the other player when the result host misses reconnect before next level", async () => {
+    const mutableConfig = config as { seatHoldMs: number };
+    const originalSeatHoldMs = mutableConfig.seatHoldMs;
+    mutableConfig.seatHoldMs = 50;
+    try {
+      const { alice, bob } = await joinTwoPlayers();
+      await readyAndEnterLevel(alice, bob);
+      await placeCurrentDealSuccessfully(alice, bob);
+      expect(room.phase).toBe("reveal");
+
+      alice.emit(ClientEvents.GameContinueToResult);
+      await waitForEvent(alice, ServerEvents.RoomState);
+      expect(room.phase).toBe("result");
+      expect(room.revealResult?.pass).toBe(true);
+
+      alice.disconnect();
+      await waitForCondition(() => room.seats.find((seat) => seat.id === "A")?.connected === false);
+      await waitForCondition(() => room.phase === "waiting" && room.seats.find((seat) => seat.id === "A")?.nick === null);
+
+      expect(room.host).toBe("B");
+      expect(room.seats.find((seat) => seat.id === "B")?.nick).toBe("Bob");
+      expect(room.seats.find((seat) => seat.id === "B")?.connected).toBe(true);
+      expect(room.currentChallenge).toBeNull();
+      expect(room.currentLevelIndex).toBeNull();
+      expect(room.hands).toEqual({});
+
+      const rejoinedAlice = await connectClient();
+      rejoinedAlice.emit(ClientEvents.PlayerJoin, joinPayload("Alice"));
+      await waitForEvent(rejoinedAlice, ServerEvents.RoomState);
+
+      expect(room.phase).toBe("waiting");
+      expect(room.seats.some((seat) => seat.nick === "Alice")).toBe(true);
+      expect(room.seats.some((seat) => seat.nick === "Bob")).toBe(true);
     } finally {
       mutableConfig.seatHoldMs = originalSeatHoldMs;
     }

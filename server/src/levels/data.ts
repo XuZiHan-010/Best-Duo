@@ -23,10 +23,10 @@ export const rawLevels: Challenge[] = [
     centerCap: "inf",
     playable: true,
     conditions: [
-      { type: "sum-range", segment: 2, min: 12, max: 16 },
+      { type: "sum-range", segment: 3, min: 12, max: 16 },
       { type: "exact-cards", segment: 6, count: 3 }
     ],
-    notes: "区段 2 总和落在 12–16，区段 6 恰好 3 张；可行性取决于随机抽到的 12 张牌。"
+    notes: "区段 3 总和落在 12–16，区段 6 恰好 3 张；可行性取决于随机抽到的 12 张牌。"
   },
   {
     id: "level-03",

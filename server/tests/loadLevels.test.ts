@@ -6,9 +6,15 @@ describe("loadLevels", () => {
     const levels = loadLevels();
     const levelWithOrder = levels.find((level) => level.id === "level-03");
 
-    expect(levelWithOrder?.centerCap).toBeNull();
+    expect(levelWithOrder?.centerCap).toBe("inf");
     expect(levelWithOrder?.conditions).toContainEqual({ type: "placement-order", order: 1, segment: 2 });
     expect(levelWithOrder?.conditions).toContainEqual({ type: "segment-colors", segment: 3, black: 1, white: 1 });
+  });
+
+  it("keeps level 2 range condition on S3 at runtime", () => {
+    const level = loadLevels().find((candidate) => candidate.id === "level-02");
+
+    expect(level?.conditions).toContainEqual({ type: "sum-range", segment: 2, min: 12, max: 16 });
   });
 
   it("derives each permanent global rule exactly once", () => {

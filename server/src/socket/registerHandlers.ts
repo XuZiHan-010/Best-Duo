@@ -100,6 +100,22 @@ const endGameAndResetRoom = (io: Server, room: GameRoom) => {
   emitStateToAll(io, room);
 };
 
+const returnToWaitingAndReleaseSeat = (io: Server, room: GameRoom, seatId: SeatId) => {
+  clearAllTimers(room);
+  resetRoundState(room);
+  room.phase = "waiting";
+  room.currentLevelIndex = null;
+  room.currentChallenge = null;
+  room.chat = [];
+
+  const seat = findSeat(room, seatId);
+  if (seat) {
+    releaseSeat(room, seat);
+  }
+  refreshHostStartTimer(io, room);
+  emitStateToAll(io, room);
+};
+
 const allConnectedPlayersReady = (room: GameRoom) =>
   room.phase === "waiting" &&
   room.seats.every((seat) => Boolean(seat.nick && seat.connected && room.ready[seat.id]));
@@ -390,20 +406,24 @@ export const registerHandlers = (ctx: HandlerContext) => {
   );
 
   socket.on(ClientEvents.CardPlace, (payload) =>
-    run(socket, () => {
+    run(socket, async () => {
       const seatId = requireSeatId(socket);
       const parsed = cardPlaceSchema.parse(payload);
       applyPlacement(room, seatId, parsed);
       clearTurnTimers(room);
-      startHintTimer(room, () => {
-        run(socket, async () => {
-          applyHintDecision(room, room.pendingHint?.seatId ?? seatId, "no");
-          clearTurnTimers(room);
-          await afterRevealIfNeeded(ctx);
-          await continueTurnOrAgentHandoff(ctx);
-          emitStateToAll(io, room);
+      if (room.pendingHint) {
+        startHintTimer(room, () => {
+          run(socket, async () => {
+            applyHintDecision(room, room.pendingHint?.seatId ?? seatId, "no");
+            clearTurnTimers(room);
+            await afterRevealIfNeeded(ctx);
+            await continueTurnOrAgentHandoff(ctx);
+            emitStateToAll(io, room);
+          });
         });
-      });
+      } else {
+        await continueTurnOrAgentHandoff(ctx);
+      }
       emitStateToAll(io, room);
     })
   );
@@ -499,6 +519,10 @@ export const registerHandlers = (ctx: HandlerContext) => {
       // this seat id), so bail out once the room has moved on.
       if (room.seats.find((candidate) => candidate.id === seat.id) !== seat) return;
       if (seat.connected || !seat.holdUntil || seat.holdUntil > Date.now()) return;
+      if (room.phase === "levelSelect" || room.phase === "result") {
+        returnToWaitingAndReleaseSeat(io, room, seat.id);
+        return;
+      }
       if (gameFlowPhases.has(room.phase)) {
         endGameAndResetRoom(io, room);
         return;
