@@ -1,6 +1,6 @@
 # Project Progress
 
-> 更新时间：2026-06-16  
+> 更新时间：2026-06-17  
 > 用途：记录当前开发完成度与下一步优先级。更细的设计与执行细节见 [`plans/`](plans/)。
 
 ## 状态说明
@@ -17,7 +17,9 @@
 
 当前项目是单房间双人 Web 原型。后端 MVP M0-M7 主流程与 review follow-ups 已基本完成，代码仍保持 2 人 MVP 锁定；M8 的 3/4 人 `capacity` 尚未正式开放，虽然 `dealRules`、座位数组化和共享类型已经为 3/4 人预留。
 
-前端核心联调界面已推进到可完整承接服务端主流程的阶段。本轮前端 review fixes 已经大量落地：重连/离线禁操作、移动端 placing 布局、HintPrompt focus trap、LevelSelect 只读语义、Pill 方向键、skip link、聊天 input `name`、倒计时 `requestAnimationFrame`、隐藏牌 DOM 泄漏检测、选段错位修复等都有对应实现和 Playwright E2E 用例。下一步重点从“补代码”转为“全量验收与回归”。
+前端核心联调界面已推进到可完整承接服务端主流程的阶段。本轮前端 review fixes 已经大量落地：重连/离线禁操作、移动端 placing 布局、HintPrompt focus trap、LevelSelect 只读语义、Pill 方向键、skip link、聊天 input `name`、倒计时 `requestAnimationFrame`、隐藏牌 DOM 泄漏检测、选段错位修复等都有对应实现和 Playwright E2E 用例。
+
+**2026-06-17 新增**：揭示（Reveal）阶段现在暂停等待房主手动确认后再进入结算，移除了原来的自动推进计时器；新增 `game:continueToResult` 服务端事件、客户端 socket adapter 对应封装，以及 Reveal 视图中房主专属”继续”按钮。下一步重点从”补代码”转为”全量验收与回归”。
 
 ## 后端里程碑
 
@@ -49,7 +51,7 @@
 | M2 选关 + 讨论 | LevelSelect 网格、已通关标记、规则说明、RulesPanel、聊天、讨论倒计时、房主提前开始。 | 基本完成 | 已改用真实关卡摘要；非房主只读语义和 `content-visibility` 已收口，待全量回归。 |
 | M3 出牌核心 | 三栏布局、ClockBoard、HandRail、抢先手 / 交替态、回合倒计时、自由放置交互。 | 基本完成 | 区段 0/1-based 错位已修；S1/S6 出牌路径有 E2E 覆盖。 |
 | M4 提示系统 | HintMarkers、HintPrompt 5 秒弹窗、暂停态、提示翻开牌展示。 | 基本完成 | focus trap、背景 `inert`、提示超时 E2E 已补；仍建议手动验收读屏与键盘体验。 |
-| M5 揭示 + 结算 | Reveal 翻牌 / 总和 / 条件逐条亮灯；Result 成功 / 失败 / 复盘 / 房主按钮。 | 基本完成 | 结算二次确认、超时结果展示等已补；待完整端到端回归。 |
+| M5 揭示 + 结算 | Reveal 翻牌 / 总和 / 条件逐条亮灯；Result 成功 / 失败 / 复盘 / 房主按钮。 | 基本完成 | 揭示阶段已改为房主主动确认推进（`game:continueToResult`），移除自动计时；结算二次确认、超时结果展示等已补；待完整端到端回归。 |
 | M6 打磨 | 动效、`reduced-motion`、响应式、移动端 placing、连接 / 重连 / 离线三态、空 / 错 / 超长态、Playwright E2E。 | 基本完成 | review fixes 已大体落地，新增多条 E2E：重连禁操作、移动端布局、focus trap、skip link、Pill 键盘、隐藏牌防泄漏等。尚需跑全套验证。 |
 | M7 上线验收与回归硬化 | 前端 build/typecheck/e2e 全绿；本地双开完整流程验收；Railway 页面和 Socket 行为验收；文档口径回写。 | 进行中 | E2E 基础已经建立，下一步应集中在全量跑测、修剩余回归和 Railway 手动验收。 |
 | M8 3/4 人前端支持 | UI 放开 `capacity` 3/4；座位、TopBar、回合、手牌数量、可见性按 N 人派生；补多人 E2E。 | 未开始 | 需配合后端 M8；当前只保留结构预留，不应对外开放。 |
