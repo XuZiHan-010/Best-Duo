@@ -39,6 +39,8 @@ function badgeForCondition(c: Condition): { segment: number; badge: SegmentBadge
     case "exact-cards":
     case "segment-colors":
       return null;
+    case "min-color-cards":
+      return { segment: c.segment, badge: { short: `≥${c.count}${c.color === "black" ? "黑" : "白"}`, full, kind: "color" } };
     case "sum-equals":
       return { segment: c.segment, badge: { short: `=${c.value}`, full, kind: "sum" } };
     case "sum-range":
@@ -47,6 +49,8 @@ function badgeForCondition(c: Condition): { segment: number; badge: SegmentBadge
       return { segment: c.segment, badge: { short: c.parity === "odd" ? "奇" : "偶", full, kind: "sum" } };
     case "all-distinct":
       return { segment: c.segment, badge: { short: "各不同", full, kind: "other" } };
+    case "has-duplicate-value":
+      return { segment: c.segment, badge: { short: "同值×2", full, kind: "other" } };
     // 出牌顺序：在目标扇区常驻「第 N 张落这里」徽标（迷你卡片 + 序号角标）。
     case "placement-order":
       return {

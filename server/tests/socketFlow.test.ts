@@ -204,7 +204,7 @@ describe("socket flow", () => {
     alice.emit(ClientEvents.PlayerJoin, joinPayload("Alice"));
     const state = await waitForEvent<PublicRoomState>(alice, ServerEvents.RoomState);
 
-    expect(state.levelSummaries).toHaveLength(4);
+    expect(state.levelSummaries).toHaveLength(levels.length);
     expect(state.levelSummaries[0]).toMatchObject({
       id: "level-01",
       levelIndex: 1,
@@ -675,6 +675,30 @@ describe("socket flow", () => {
       alice.emit(ClientEvents.RoomReset);
       await waitForEvent(alice, ServerEvents.RoomState);
       expect(room.phase).toBe("waiting");
+    } finally {
+      if (originalNodeEnv === undefined) {
+        delete process.env.NODE_ENV;
+      } else {
+        process.env.NODE_ENV = originalNodeEnv;
+      }
+    }
+  });
+
+  it("keeps sequential level locking in production", async () => {
+    const { alice } = await joinTwoPlayers();
+    room.host = "A";
+    room.phase = "levelSelect";
+
+    const originalNodeEnv = process.env.NODE_ENV;
+    try {
+      process.env.NODE_ENV = "production";
+      alice.emit(ClientEvents.HostSelectLevel, { levelIndex: 2 });
+      const error = await waitForEvent<{ code: string; message: string }>(alice, ServerEvents.RoomError);
+
+      expect(error.code).toBe("bad-request");
+      expect(error.message).toBe("该关卡尚未解锁");
+      expect(room.phase).toBe("levelSelect");
+      expect(room.currentLevelIndex).toBeNull();
     } finally {
       if (originalNodeEnv === undefined) {
         delete process.env.NODE_ENV;

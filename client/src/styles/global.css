@@ -630,10 +630,12 @@ input, textarea {
 }
 .placed-card--blind {
   font-size: 16px;
+  opacity: 0.75;
 }
 .placed-card--blind:not(.placed-card--white):not(.placed-card--black) {
   background: var(--bg-3); color: var(--brass);
   border: 1.5px solid var(--brass);
+  opacity: 1;
 }
 /* ── ClockSegment overlay ── */
 .clock-segment-overlay {

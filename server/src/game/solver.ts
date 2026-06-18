@@ -109,7 +109,10 @@ const isSubsetSolverCondition = (condition: Condition) =>
   condition.type === "parity" ||
   condition.type === "placement-order" ||
   condition.type === "segment-colors" ||
-  condition.type === "all-distinct";
+  condition.type === "min-color-cards" ||
+  condition.type === "adjacent-diff" ||
+  condition.type === "all-distinct" ||
+  condition.type === "has-duplicate-value";
 
 const trySubsetPartitionSolve = (conditions: Condition[], cards: SolverCard[], seatIds: SeatId[]): SolveResult | null => {
   if (cards.length > 20 || !conditions.every(isSubsetSolverCondition) || !conditions.some(isFullNonDecreasingRule)) return null;
@@ -168,8 +171,17 @@ const trySubsetPartitionSolve = (conditions: Condition[], cards: SolverCard[], s
               valid = false;
             }
             break;
+          case "min-color-cards":
+            if (condition.segment === segment) {
+              const count = condition.color === "black" ? subsetBlackCounts[mask] : subsetWhiteCounts[mask];
+              if (count < condition.count) valid = false;
+            }
+            break;
           case "all-distinct":
             if (condition.segment === segment && !subsetDistinct[mask]) valid = false;
+            break;
+          case "has-duplicate-value":
+            if (condition.segment === segment && subsetDistinct[mask]) valid = false;
             break;
         }
         if (!valid) break;
@@ -351,7 +363,9 @@ const getTargetSegments = (conditions: Condition[]) => {
       case "sum-range":
       case "parity":
       case "segment-colors":
+      case "min-color-cards":
       case "all-distinct":
+      case "has-duplicate-value":
       case "placement-order":
         targets.add(condition.segment);
         break;
@@ -496,8 +510,16 @@ const passesFinalConditions = (state: SolverState, conditions: Condition[], seat
       case "segment-colors":
         if (state.blackCounts[condition.segment] !== condition.black || state.whiteCounts[condition.segment] !== condition.white) return false;
         break;
+      case "min-color-cards": {
+        const count = condition.color === "black" ? state.blackCounts[condition.segment] : state.whiteCounts[condition.segment];
+        if (count < condition.count) return false;
+        break;
+      }
       case "all-distinct":
         if (state.valueSets[condition.segment].size !== state.counts[condition.segment]) return false;
+        break;
+      case "has-duplicate-value":
+        if (state.valueSets[condition.segment].size >= state.counts[condition.segment]) return false;
         break;
       case "max-sum-each":
         if (state.sums.some((sum) => sum > condition.value)) return false;

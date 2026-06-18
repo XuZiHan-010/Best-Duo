@@ -364,7 +364,7 @@ src/
 - `non-decreasing {1..6}` → 「区1 ≤ 区2 ≤ … ≤ 区6」
 - `max-sum-each {24}` → 「每区段总和 ≤ 24」（时钟中心值；钟面中心另有大字展示，条件清单可省或并列）
 
-新增条件类型时**同步更新此映射表**（与条件引擎词汇表保持一致）。这是 [levels/README.md · 扩展工作流](../levels/README.md) 的前端一环：新增 type = README 词汇 + `shared` Condition 联合 + 后端引擎 case + 此处映射，四处各加一小段。
+新增条件类型时**同步更新此映射表**（与条件引擎词汇表保持一致）。这是 [levels/README.md · 扩展工作流](../levels/README.md) 的前端一环：新增 type = README 词汇 + `shared` Condition 联合 + 后端引擎 case + 求解器支持 + 前端文案/徽标映射。
 
 ---
 

@@ -5,6 +5,11 @@ import { isHostSelector } from "../store/selectors.js";
 import { adapter } from "../socket/adapter.js";
 import { CountdownTimer } from "../components/CountdownTimer.js";
 
+const isLocalTestHost = () => {
+  if (typeof window === "undefined") return import.meta.env.DEV;
+  return ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
+};
+
 export function LevelSelect() {
   const roomState = useRoomStore((s) => s.roomState);
   const isHost    = useRoomStore(isHostSelector);
@@ -16,6 +21,7 @@ export function LevelSelect() {
   const cleared = roomState.progress.clearedLevels;
   const { levelSummaries, timer } = roomState;
   const levelSelectTimer = timer?.kind === "levelSelect" ? timer : null;
+  const unlockAllLevels = import.meta.env.DEV || isLocalTestHost();
 
   return (
     <div className="level-select">
@@ -57,7 +63,7 @@ export function LevelSelect() {
           const levelNum = summary.levelIndex;
           const isCleared = cleared.includes(levelNum);
           // 顺序解锁：第 1 关始终开放；其余关卡需上一关已通关才解锁。
-          const isUnlocked = levelNum === 1 || cleared.includes(levelNum - 1);
+          const isUnlocked = unlockAllLevels || levelNum === 1 || cleared.includes(levelNum - 1);
           const isLocked = !isUnlocked;
           const cls = [
             "level-select__card",

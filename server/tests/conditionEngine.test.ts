@@ -103,7 +103,7 @@ describe("conditionEngine", () => {
     expect(result.conditions).toHaveLength(9);
   });
 
-  it("evaluates placement order, segment colors, and distinct values", () => {
+  it("evaluates placement order, segment colors, color minimums, and distinct values", () => {
     const placements = [
       [card("third", 7, "white", 30)],
       [card("second", 4, "black", 20)],
@@ -117,11 +117,13 @@ describe("conditionEngine", () => {
       { type: "placement-order", order: 1, segment: 2 },
       { type: "placement-order", order: 2, segment: 1 },
       { type: "segment-colors", segment: 2, black: 1, white: 1 },
+      { type: "min-color-cards", segment: 5, color: "white", count: 2 },
       { type: "all-distinct", segment: 2 },
-      { type: "all-distinct", segment: 5 }
+      { type: "all-distinct", segment: 5 },
+      { type: "has-duplicate-value", segment: 5 }
     ]);
 
-    expect(result.conditions.map((entry) => entry.pass)).toEqual([true, true, true, true, false]);
+    expect(result.conditions.map((entry) => entry.pass)).toEqual([true, true, true, false, true, false, true]);
     expect(result.pass).toBe(false);
   });
 

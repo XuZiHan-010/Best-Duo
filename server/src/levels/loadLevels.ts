@@ -12,7 +12,9 @@ const normalizeCondition = (condition: Condition): Condition => {
     case "sum-range":
     case "parity":
     case "segment-colors":
+    case "min-color-cards":
     case "all-distinct":
+    case "has-duplicate-value":
     case "placement-order":
       return { ...condition, segment: normalizeSegment(condition.segment) };
     case "non-decreasing":

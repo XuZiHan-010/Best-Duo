@@ -20,8 +20,12 @@ export type Condition =
   | { type: "placement-order"; order: number; segment: number }
   // 某区段恰好包含 black 张黑牌与 white 张白牌。
   | { type: "segment-colors"; segment: number; black: number; white: number }
+  // 某区段至少包含 count 张指定颜色的牌。
+  | { type: "min-color-cards"; segment: number; color: CardColor; count: number }
   // 某区段内所有牌的数值互不相同（不限张数）。
   | { type: "all-distinct"; segment: number }
+  // 某区段内至少存在两张数值相同的牌（不限张数）。
+  | { type: "has-duplicate-value"; segment: number }
   | { type: "max-sum-each"; value: number };
 
 export interface Challenge {

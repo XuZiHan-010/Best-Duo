@@ -83,9 +83,9 @@ take_time/
 固定流转 `waiting → levelSelect → discussion → placing → reveal → result`。每个转换是显式函数，转换时校验前置 phase；每次状态变更后统一调用出站广播。
 
 ### 2.3 条件引擎（`conditionEngine.ts`）— 优先 TDD 的纯函数
-纯函数：输入 6 段牌值数组 + 各段牌数 + `Condition[]` → `{ pass, failedConditions[] }`。覆盖 [levels/README.md](../levels/README.md) 全部类型：`all-nonempty / min-cards / max-cards / exact-cards / sum-equals / sum-range / parity / non-decreasing / non-increasing / adjacent-diff / max-sum-each`。空段总和按 0 计（与 [level-02](../levels/level-02.md) 备注一致）。最值得先写、最易单测，作为 M1 起点。**只吃归一化后的 0–5 口径**（见 §2.8）。
+纯函数：输入 6 段放置牌列表 + `Condition[]`，派生牌值总和、各段牌数、颜色数量和出牌顺序 → `{ pass, failedConditions[] }`。覆盖 [levels/README.md](../levels/README.md) 全部类型：`all-nonempty / min-cards / max-cards / exact-cards / sum-equals / sum-range / parity / non-decreasing / non-increasing / adjacent-diff / placement-order / segment-colors / min-color-cards / all-distinct / max-sum-each`。空段总和按 0 计（与 [level-02](../levels/level-02.md) 备注一致）。最值得先写、最易单测，作为 M1 起点。**只吃归一化后的 0–5 口径**（见 §2.8）。
 
-> **扩展点**：新增条件类型只需碰 4 处（README 词汇表 → `shared/level.ts` 的 `Condition` 联合 → 本引擎加一个 `case` → 前端 `conditionText.ts` 映射），与 [levels/README.md · 扩展工作流](../levels/README.md) 一致。`max-sum-each { value }`（每段总和 ≤ value）即时钟中心值 `centerCap` 的引擎表示。
+> **扩展点**：新增条件类型需同步 README 词汇表、`shared/level.ts` 的 `Condition` 联合、本引擎 `case`、发牌求解器 `solver.ts`、前端 `conditionText.ts`/必要的 `segmentHints.ts` 映射，与 [levels/README.md · 扩展工作流](../levels/README.md) 一致。`max-sum-each { value }`（每段总和 ≤ value）即时钟中心值 `centerCap` 的引擎表示。
 
 ### 2.4 可见性遮蔽（`visibility.ts`）— 安全关键
 **下发前**按接收者裁剪，绝不把隐藏牌值发给客户端：

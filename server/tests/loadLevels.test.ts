@@ -17,6 +17,18 @@ describe("loadLevels", () => {
     expect(level?.conditions).toContainEqual({ type: "sum-range", segment: 2, min: 12, max: 16 });
   });
 
+  it("normalizes color minimum conditions for later levels", () => {
+    const level = loadLevels().find((candidate) => candidate.id === "level-08");
+
+    expect(level?.conditions).toContainEqual({ type: "min-color-cards", segment: 5, color: "white", count: 2 });
+  });
+
+  it("normalizes duplicate value conditions for level 5", () => {
+    const level = loadLevels().find((candidate) => candidate.id === "level-05");
+
+    expect(level?.conditions).toContainEqual({ type: "has-duplicate-value", segment: 5 });
+  });
+
   it("derives each permanent global rule exactly once", () => {
     for (const level of loadLevels()) {
       const globalRuleKeys = level.conditions

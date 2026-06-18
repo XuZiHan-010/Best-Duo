@@ -71,10 +71,22 @@ const evaluateOne = (
       const pass = black === condition.black && white === condition.white;
       return { condition, pass, message: `${label(condition.segment)} 恰好 ${condition.black} 张黑牌、${condition.white} 张白牌` };
     }
+    case "min-color-cards": {
+      const cards = placements[condition.segment];
+      const count = cards.filter((card) => card.color === condition.color).length;
+      const colorText = condition.color === "black" ? "黑牌" : "白牌";
+      const pass = count >= condition.count;
+      return { condition, pass, message: `${label(condition.segment)} 至少 ${condition.count} 张${colorText}` };
+    }
     case "all-distinct": {
       const values = placements[condition.segment].map((card) => card.value);
       const pass = new Set(values).size === values.length;
       return { condition, pass, message: `${label(condition.segment)} 内各牌数值互不相同` };
+    }
+    case "has-duplicate-value": {
+      const values = placements[condition.segment].map((card) => card.value);
+      const pass = new Set(values).size < values.length;
+      return { condition, pass, message: `${label(condition.segment)} 内至少有两张牌数值相同` };
     }
     case "max-sum-each": {
       const pass = segmentSums.every((sum) => sum <= condition.value);

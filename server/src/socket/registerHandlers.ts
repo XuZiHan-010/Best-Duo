@@ -76,6 +76,11 @@ const withClearedLevel = (progress: ProgressState, levelIndex: number): Progress
   clearedLevels: [...new Set([...progress.clearedLevels, levelIndex])].sort((a, b) => a - b)
 });
 
+const shouldUnlockAllLevels = () => (process.env.NODE_ENV ?? config.nodeEnv) !== "production";
+
+const isLevelUnlocked = (progress: ProgressState, levelIndex: number): boolean =>
+  shouldUnlockAllLevels() || levelIndex === 1 || progress.clearedLevels.includes(levelIndex - 1);
+
 const clearSocketSeatBindings = (io: Server) => {
   for (const connectedSocket of io.sockets.sockets.values()) {
     connectedSocket.data.seatId = undefined;
@@ -370,8 +375,7 @@ export const registerHandlers = (ctx: HandlerContext) => {
       const level = levels.find((candidate) => candidate.levelIndex === levelIndex);
       if (!level) throw new Error("关卡不存在");
       // 顺序解锁：第 1 关始终开放；其余关卡需上一关已通关才可选。
-      const isUnlocked = levelIndex === 1 || room.progress.clearedLevels.includes(levelIndex - 1);
-      if (!isUnlocked) throw new Error("该关卡尚未解锁");
+      if (!isLevelUnlocked(room.progress, levelIndex)) throw new Error("该关卡尚未解锁");
       clearLevelSelectTimer(room);
       startDiscussionWithTimer(ctx, level);
       emitStateToAll(io, room);

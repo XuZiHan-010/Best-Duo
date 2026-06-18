@@ -23,6 +23,11 @@ describe("solver", () => {
     expect(canSolveDeal(level, makeCards([9, 9, 10, 10, 11, 11, 12, 12, 9, 10, 11, 12]), ["A", "B"]).solvable).toBe(false);
   });
 
+  it("finds a solution for level 5 with a duplicate-value target", () => {
+    const level = loadLevels().find((candidate) => candidate.id === "level-05")!;
+    expect(canSolveDeal(level, makeCards([1, 2, 3, 4, 5, 6, 5, 8, 9, 10, 11, 12]), ["A", "B"]).solvable).toBe(true);
+  });
+
   it("accepts deals that can satisfy order and color constraints", () => {
     const level = loadLevels().find((candidate) => candidate.id === "level-03")!;
     const cards = makeCards([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], [
@@ -39,6 +44,26 @@ describe("solver", () => {
       "black",
       "white"
     ]);
+    expect(canSolveDeal(level, cards, ["A", "B"]).solvable).toBe(true);
+  });
+
+  it("finds a solution for a later level with color minimums", () => {
+    const level = loadLevels().find((candidate) => candidate.id === "level-08")!;
+    const cards = makeCards([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], [
+      "black",
+      "white",
+      "black",
+      "white",
+      "black",
+      "white",
+      "black",
+      "white",
+      "black",
+      "white",
+      "black",
+      "white"
+    ]);
+
     expect(canSolveDeal(level, cards, ["A", "B"]).solvable).toBe(true);
   });
 });

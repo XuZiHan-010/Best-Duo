@@ -8,7 +8,9 @@ data/
 .env.*
 npm-debug.log*
 *.tsbuildinfo
+.tmp/
 .tmp-e2e-data/
+.superpowers/
 client/test-results/
 client/playwright-report/
 client/blob-report/

@@ -29,8 +29,12 @@ export function conditionToText(c: Condition): string {
       return `第 ${c.order} 张打出的牌必须落在区${seg(c.segment)}`;
     case "segment-colors":
       return `区${seg(c.segment)} 恰好 ${c.black} 黑 + ${c.white} 白`;
+    case "min-color-cards":
+      return `区${seg(c.segment)} 至少 ${c.count} 张${c.color === "black" ? "黑牌" : "白牌"}`;
     case "all-distinct":
       return `区${seg(c.segment)} 内各牌数值互不相同`;
+    case "has-duplicate-value":
+      return `区${seg(c.segment)} 内至少有两张牌数值相同`;
     case "max-sum-each":
       return `每区段总和 ≤ ${c.value}`;
     default:
