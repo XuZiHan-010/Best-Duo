@@ -1,6 +1,6 @@
 # Best Duo Online
 
-[中文](#take-time-online) | [English](#take-time-online-english)
+[中文](#best-duo-online) | [English](#best-duo-online-english)
 
 一个私用的、非盈利的在线合作时钟谜题游戏原型，灵感来自 Libellud 的合作桌游《Take Time》。
 
@@ -224,7 +224,7 @@ data/     本地进度数据目录
 
 # Best Duo Online English
 
-[中文](#take-time-online) | [English](#take-time-online-english)
+[中文](#best-duo-online) | [English](#best-duo-online-english)
 
 A private, non-commercial online cooperative clock puzzle prototype inspired by Libellud's cooperative board game *Take Time*.
 

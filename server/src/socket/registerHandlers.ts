@@ -76,7 +76,11 @@ const withClearedLevel = (progress: ProgressState, levelIndex: number): Progress
   clearedLevels: [...new Set([...progress.clearedLevels, levelIndex])].sort((a, b) => a - b)
 });
 
-const shouldUnlockAllLevels = () => (process.env.NODE_ENV ?? config.nodeEnv) !== "production";
+const shouldUnlockAllLevels = () => {
+  const raw = process.env.UNLOCK_ALL_LEVELS;
+  if (raw) return ["1", "true", "yes", "on"].includes(raw.toLowerCase());
+  return (process.env.NODE_ENV ?? config.nodeEnv) !== "production";
+};
 
 const isLevelUnlocked = (progress: ProgressState, levelIndex: number): boolean =>
   shouldUnlockAllLevels() || levelIndex === 1 || progress.clearedLevels.includes(levelIndex - 1);

@@ -2,19 +2,41 @@ import { describe, expect, it } from "vitest";
 import { loadLevels } from "../src/levels/loadLevels.js";
 
 describe("loadLevels", () => {
-  it("normalizes human segment numbers to zero-based runtime indexes", () => {
+  it("keeps level 1 exact white card condition at runtime", () => {
     const levels = loadLevels();
-    const levelWithOrder = levels.find((level) => level.id === "level-03");
+    const level = levels.find((candidate) => candidate.id === "level-01");
 
-    expect(levelWithOrder?.centerCap).toBe("inf");
-    expect(levelWithOrder?.conditions).toContainEqual({ type: "placement-order", order: 1, segment: 2 });
-    expect(levelWithOrder?.conditions).toContainEqual({ type: "segment-colors", segment: 3, black: 1, white: 1 });
+    expect(level?.centerCap).toBe("inf");
+    expect(level?.conditions).toContainEqual({ type: "segment-colors", segment: 0, black: 0, white: 1 });
+    expect(level?.conditions).toContainEqual({ type: "exact-cards", segment: 5, count: 3 });
   });
 
-  it("keeps level 2 range condition on S3 at runtime", () => {
-    const level = loadLevels().find((candidate) => candidate.id === "level-02");
+  it("keeps level 2 sum range and card count conditions at runtime", () => {
+    const levels = loadLevels();
+    const level = levels.find((candidate) => candidate.id === "level-02");
 
-    expect(level?.conditions).toContainEqual({ type: "sum-range", segment: 2, min: 12, max: 16 });
+    expect(level?.centerCap).toBe("inf");
+    expect(level?.conditions).toContainEqual({ type: "sum-range", segment: 2, min: 8, max: 12 });
+    expect(level?.conditions).toContainEqual({ type: "exact-cards", segment: 3, count: 3 });
+  });
+
+  it("keeps level 3 order and infinite cap conditions at runtime", () => {
+    const level = loadLevels().find((candidate) => candidate.id === "level-03");
+
+    expect(level?.centerCap).toBe("inf");
+    expect(level?.conditions).toContainEqual({ type: "sum-range", segment: 5, min: 20, max: 30 });
+    expect(level?.conditions).toContainEqual({ type: "placement-order", order: 1, segment: 2 });
+    expect(level?.conditions).toContainEqual({ type: "placement-order", order: 2, segment: 1 });
+    expect(level?.conditions.some((condition) => condition.type === "max-sum-each")).toBe(false);
+  });
+
+  it("keeps level 4 closest and color conditions at runtime", () => {
+    const level = loadLevels().find((candidate) => candidate.id === "level-04");
+
+    expect(level?.centerCap).toBeNull();
+    expect(level?.conditions).toContainEqual({ type: "closest-to-value", segment: 0, value: 6 });
+    expect(level?.conditions).toContainEqual({ type: "segment-colors", segment: 3, black: 1, white: 1 });
+    expect(level?.conditions).toContainEqual({ type: "max-sum-each", value: 24 });
   });
 
   it("normalizes color minimum conditions for later levels", () => {
@@ -27,6 +49,29 @@ describe("loadLevels", () => {
     const level = loadLevels().find((candidate) => candidate.id === "level-05");
 
     expect(level?.conditions).toContainEqual({ type: "has-duplicate-value", segment: 5 });
+  });
+
+  it("normalizes level 11 color and card-count constraints", () => {
+    const level = loadLevels().find((candidate) => candidate.id === "level-11");
+
+    expect(level?.difficulty).toBe("★★★");
+    expect(level?.conditions).toContainEqual({ type: "closest-to-value", segment: 0, value: 6 });
+    expect(level?.conditions).toContainEqual({ type: "min-color-cards", segment: 1, color: "white", count: 2 });
+    expect(level?.conditions).toContainEqual({ type: "max-color-cards", segment: 1, color: "black", count: 0 });
+    expect(level?.conditions).toContainEqual({ type: "min-color-cards", segment: 3, color: "black", count: 1 });
+    expect(level?.conditions).toContainEqual({ type: "min-color-cards", segment: 3, color: "white", count: 1 });
+    expect(level?.conditions).toContainEqual({ type: "exact-cards", segment: 5, count: 2 });
+    expect(level?.conditions).toContainEqual({ type: "max-sum-each", value: 24 });
+  });
+
+  it("normalizes level 12 forbidden value constraints", () => {
+    const level = loadLevels().find((candidate) => candidate.id === "level-12");
+
+    expect(level?.difficulty).toBe("★★★");
+    expect(level?.conditions).toContainEqual({ type: "forbidden-values", segment: 0, values: [1, 2, 3] });
+    expect(level?.conditions).toContainEqual({ type: "forbidden-values", segment: 2, values: [1, 2, 3] });
+    expect(level?.conditions).toContainEqual({ type: "forbidden-values", segment: 4, values: [1, 2, 3] });
+    expect(level?.conditions).toContainEqual({ type: "max-sum-each", value: 24 });
   });
 
   it("derives each permanent global rule exactly once", () => {

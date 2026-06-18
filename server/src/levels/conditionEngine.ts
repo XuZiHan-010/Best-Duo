@@ -41,6 +41,11 @@ const evaluateOne = (
       const pass = condition.parity === "even" ? value % 2 === 0 : Math.abs(value % 2) === 1;
       return { condition, pass, message: `${label(condition.segment)} 总和为${condition.parity === "even" ? "偶数" : "奇数"}` };
     }
+    case "closest-to-value": {
+      const targetDistance = Math.abs(segmentSums[condition.segment] - condition.value);
+      const pass = segmentSums.every((sum, segment) => segment === condition.segment || Math.abs(sum - condition.value) > targetDistance);
+      return { condition, pass, message: `${label(condition.segment)} 是唯一最接近 ${condition.value} 的区段` };
+    }
     case "non-decreasing": {
       const values = condition.segments.map((segment) => segmentSums[segment]);
       const pass = values.every((value, index) => index === 0 || values[index - 1] <= value);
@@ -56,7 +61,6 @@ const evaluateOne = (
       return { condition, pass, message: `${label(condition.a)} 与 ${label(condition.b)} 总和差不超过 ${condition.maxDiff}` };
     }
     case "placement-order": {
-      // 按服务端单调出牌序号排序，取第 order 张（1 起）看它落在哪个区段。
       const ordered = placements
         .flatMap((cards, segment) => cards.map((card) => ({ segment, playOrder: card.playOrder })))
         .sort((a, b) => a.playOrder - b.playOrder);
@@ -72,11 +76,21 @@ const evaluateOne = (
       return { condition, pass, message: `${label(condition.segment)} 恰好 ${condition.black} 张黑牌、${condition.white} 张白牌` };
     }
     case "min-color-cards": {
-      const cards = placements[condition.segment];
-      const count = cards.filter((card) => card.color === condition.color).length;
+      const count = placements[condition.segment].filter((card) => card.color === condition.color).length;
       const colorText = condition.color === "black" ? "黑牌" : "白牌";
       const pass = count >= condition.count;
       return { condition, pass, message: `${label(condition.segment)} 至少 ${condition.count} 张${colorText}` };
+    }
+    case "max-color-cards": {
+      const count = placements[condition.segment].filter((card) => card.color === condition.color).length;
+      const colorText = condition.color === "black" ? "黑牌" : "白牌";
+      const pass = count <= condition.count;
+      return { condition, pass, message: `${label(condition.segment)} 至多 ${condition.count} 张${colorText}` };
+    }
+    case "forbidden-values": {
+      const blocked = new Set(condition.values);
+      const pass = placements[condition.segment].every((card) => !blocked.has(card.value));
+      return { condition, pass, message: `${label(condition.segment)} 不能放 ${condition.values.join(", ")}` };
     }
     case "all-distinct": {
       const values = placements[condition.segment].map((card) => card.value);

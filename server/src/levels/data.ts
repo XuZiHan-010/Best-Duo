@@ -5,57 +5,60 @@ import type { Challenge } from "@take-time/shared";
 export const rawLevels: Challenge[] = [
   {
     id: "level-01",
-    name: "第 1 关 · 拾级而上",
+    name: "第 1 关 · 精打细算",
     levelIndex: 1,
     difficulty: "★",
     segmentCount: 6,
     centerCap: "inf",
     playable: true,
-    conditions: [],
-    notes: "教学关：只使用加载器自动叠加的三条全局规则。"
+    conditions: [
+      { type: "segment-colors", segment: 1, black: 0, white: 1 },
+      { type: "exact-cards", segment: 6, count: 3 }
+    ],
+    notes: "区段 1 恰好只能放 1 张白牌；区段 6 恰好 3 张，不限制颜色。"
   },
   {
     id: "level-02",
-    name: "第 2 关 · 精打细算",
+    name: "第 2 关 · 中段定格",
     levelIndex: 2,
     difficulty: "★",
     segmentCount: 6,
     centerCap: "inf",
     playable: true,
     conditions: [
-      { type: "sum-range", segment: 3, min: 12, max: 16 },
-      { type: "exact-cards", segment: 6, count: 3 }
+      { type: "sum-range", segment: 3, min: 8, max: 12 },
+      { type: "exact-cards", segment: 4, count: 3 }
     ],
-    notes: "区段 3 总和落在 12–16，区段 6 恰好 3 张；可行性取决于随机抽到的 12 张牌。"
+    notes: "区段 3 总和落在 8-12；区段 4 恰好 3 张，不限制颜色。"
   },
   {
     id: "level-03",
-    name: "第 3 关 · 黑白有序",
+    name: "第 3 关 · 先手定位",
     levelIndex: 3,
     difficulty: "★",
     segmentCount: 6,
     centerCap: "inf",
     playable: true,
     conditions: [
+      { type: "sum-range", segment: 6, min: 20, max: 30 },
       { type: "placement-order", order: 1, segment: 3 },
-      { type: "placement-order", order: 2, segment: 2 },
-      { type: "segment-colors", segment: 4, black: 1, white: 1 }
+      { type: "placement-order", order: 2, segment: 2 }
     ],
-    notes: "前两张牌的落点被锁定：第 1 张进区段 3、第 2 张进区段 2；区段 4 恰好一黑一白。"
+    notes: "区段 6 总和落在 20-30；第 1 张牌必须放在区段 3，第 2 张牌必须放在区段 2；每段总和无上限。"
   },
   {
     id: "level-04",
-    name: "第 4 关 · 各不相同",
+    name: "第 4 关 · 六点锚",
     levelIndex: 4,
     difficulty: "★",
     segmentCount: 6,
     centerCap: null,
     playable: true,
     conditions: [
-      { type: "sum-equals", segment: 2, value: 8 },
-      { type: "all-distinct", segment: 6 }
+      { type: "closest-to-value", segment: 1, value: 6 },
+      { type: "segment-colors", segment: 4, black: 1, white: 1 }
     ],
-    notes: "区段 2 总和恰好 8；区段 6 内各牌数值互不相同（不限张数）。可行性取决于随机抽到的 12 张牌。"
+    notes: "区段 1 必须是唯一最接近 6 的区段；区段 4 恰好 1 黑 1 白。"
   },
   {
     id: "level-05",
@@ -150,5 +153,38 @@ export const rawLevels: Challenge[] = [
       { type: "adjacent-diff", a: 5, b: 6, maxDiff: 4 }
     ],
     notes: "区段 2 总和恰好 10；区段 3 总和为偶数；区段 4 恰好 1 黑 1 白；区段 5 与区段 6 总和差不超过 4。"
+  },
+  {
+    id: "level-11",
+    name: "第 11 关 · 白阶分流",
+    levelIndex: 11,
+    difficulty: "★★★",
+    segmentCount: 6,
+    centerCap: null,
+    playable: true,
+    conditions: [
+      { type: "closest-to-value", segment: 1, value: 6 },
+      { type: "min-color-cards", segment: 2, color: "white", count: 2 },
+      { type: "max-color-cards", segment: 2, color: "black", count: 0 },
+      { type: "min-color-cards", segment: 4, color: "black", count: 1 },
+      { type: "min-color-cards", segment: 4, color: "white", count: 1 },
+      { type: "exact-cards", segment: 6, count: 2 }
+    ],
+    notes: "区段 1 必须是唯一最接近 6 的区段；区段 2 只能放白牌且至少 2 张；区段 4 至少 1 黑 1 白；区段 6 恰好 2 张。"
+  },
+  {
+    id: "level-12",
+    name: "第 12 关 · 低点禁区",
+    levelIndex: 12,
+    difficulty: "★★★",
+    segmentCount: 6,
+    centerCap: null,
+    playable: true,
+    conditions: [
+      { type: "forbidden-values", segment: 1, values: [1, 2, 3] },
+      { type: "forbidden-values", segment: 3, values: [1, 2, 3] },
+      { type: "forbidden-values", segment: 5, values: [1, 2, 3] }
+    ],
+    notes: "区段 1、3、5 不能放任何数值为 1、2、3 的牌；同时沿用全局非递减、每段至少 1 张、每段总和不超过 24。"
   }
 ];

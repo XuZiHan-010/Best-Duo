@@ -212,7 +212,9 @@ describe("socket flow", () => {
       playable: true
     });
     expect(state.levelSummaries[0].centerCap).toBe("inf");
-    expect(state.levelSummaries[0].conditions).toHaveLength(2);
+    expect(state.levelSummaries[0].conditions).toHaveLength(4);
+    expect(state.levelSummaries[0].conditions).toContainEqual({ type: "segment-colors", segment: 0, black: 0, white: 1 });
+    expect(state.levelSummaries[0].conditions).toContainEqual({ type: "exact-cards", segment: 5, count: 3 });
     expect(state.levelSummaries[0].conditions).toContainEqual({ type: "non-decreasing", segments: [0, 1, 2, 3, 4, 5] });
     expect(state.levelSummaries[0].conditions).toContainEqual({ type: "all-nonempty" });
     expect(state.levelSummaries[0].conditions.some((condition) => condition.type === "max-sum-each")).toBe(false);
@@ -704,6 +706,37 @@ describe("socket flow", () => {
         delete process.env.NODE_ENV;
       } else {
         process.env.NODE_ENV = originalNodeEnv;
+      }
+    }
+  });
+
+  it("allows selecting any level outside production for local testing", async () => {
+    const { alice } = await joinTwoPlayers();
+    room.host = "A";
+    room.phase = "levelSelect";
+
+    const originalNodeEnv = process.env.NODE_ENV;
+    const originalUnlockAll = process.env.UNLOCK_ALL_LEVELS;
+    try {
+      process.env.NODE_ENV = "development";
+      delete process.env.UNLOCK_ALL_LEVELS;
+
+      alice.emit(ClientEvents.HostSelectLevel, { levelIndex: 2 });
+      await waitForEvent(alice, ServerEvents.RoomState);
+
+      expect(room.phase).toBe("discussion");
+      expect(room.currentLevelIndex).toBe(2);
+    } finally {
+      if (originalNodeEnv === undefined) {
+        delete process.env.NODE_ENV;
+      } else {
+        process.env.NODE_ENV = originalNodeEnv;
+      }
+
+      if (originalUnlockAll === undefined) {
+        delete process.env.UNLOCK_ALL_LEVELS;
+      } else {
+        process.env.UNLOCK_ALL_LEVELS = originalUnlockAll;
       }
     }
   });

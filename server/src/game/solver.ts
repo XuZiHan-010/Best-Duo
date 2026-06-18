@@ -107,9 +107,12 @@ const isSubsetSolverCondition = (condition: Condition) =>
   condition.type === "sum-equals" ||
   condition.type === "sum-range" ||
   condition.type === "parity" ||
+  condition.type === "closest-to-value" ||
   condition.type === "placement-order" ||
   condition.type === "segment-colors" ||
   condition.type === "min-color-cards" ||
+  condition.type === "max-color-cards" ||
+  condition.type === "forbidden-values" ||
   condition.type === "adjacent-diff" ||
   condition.type === "all-distinct" ||
   condition.type === "has-duplicate-value";
@@ -166,6 +169,8 @@ const trySubsetPartitionSolve = (conditions: Condition[], cards: SolverCard[], s
               if (condition.parity === "odd" ? !odd : odd) valid = false;
             }
             break;
+          case "closest-to-value":
+            break;
           case "segment-colors":
             if (condition.segment === segment && (subsetBlackCounts[mask] !== condition.black || subsetWhiteCounts[mask] !== condition.white)) {
               valid = false;
@@ -175,6 +180,20 @@ const trySubsetPartitionSolve = (conditions: Condition[], cards: SolverCard[], s
             if (condition.segment === segment) {
               const count = condition.color === "black" ? subsetBlackCounts[mask] : subsetWhiteCounts[mask];
               if (count < condition.count) valid = false;
+            }
+            break;
+          case "max-color-cards":
+            if (condition.segment === segment) {
+              const count = condition.color === "black" ? subsetBlackCounts[mask] : subsetWhiteCounts[mask];
+              if (count > condition.count) valid = false;
+            }
+            break;
+          case "forbidden-values":
+            if (
+              condition.segment === segment &&
+              cards.some((card, index) => (mask & (1 << index)) !== 0 && condition.values.includes(card.value))
+            ) {
+              valid = false;
             }
             break;
           case "all-distinct":
@@ -362,8 +381,11 @@ const getTargetSegments = (conditions: Condition[]) => {
       case "sum-equals":
       case "sum-range":
       case "parity":
+      case "closest-to-value":
       case "segment-colors":
       case "min-color-cards":
+      case "max-color-cards":
+      case "forbidden-values":
       case "all-distinct":
       case "has-duplicate-value":
       case "placement-order":
@@ -428,6 +450,12 @@ const violatesUpperBounds = (state: SolverState, condition: Condition) => {
       return state.sums[condition.segment] > condition.max;
     case "segment-colors":
       return state.blackCounts[condition.segment] > condition.black || state.whiteCounts[condition.segment] > condition.white;
+    case "max-color-cards": {
+      const count = condition.color === "black" ? state.blackCounts[condition.segment] : state.whiteCounts[condition.segment];
+      return count > condition.count;
+    }
+    case "forbidden-values":
+      return condition.values.some((value) => state.valueSets[condition.segment].has(value));
     case "max-sum-each":
       return state.sums.some((sum) => sum > condition.value);
     default:
@@ -494,6 +522,11 @@ const passesFinalConditions = (state: SolverState, conditions: Condition[], seat
         if (condition.parity === "even" ? value % 2 !== 0 : Math.abs(value % 2) !== 1) return false;
         break;
       }
+      case "closest-to-value": {
+        const targetDistance = Math.abs(state.sums[condition.segment] - condition.value);
+        if (state.sums.some((sum, segment) => segment !== condition.segment && Math.abs(sum - condition.value) <= targetDistance)) return false;
+        break;
+      }
       case "non-decreasing": {
         const values = condition.segments.map((segment) => state.sums[segment]);
         if (!values.every((value, index) => index === 0 || values[index - 1] <= value)) return false;
@@ -515,6 +548,14 @@ const passesFinalConditions = (state: SolverState, conditions: Condition[], seat
         if (count < condition.count) return false;
         break;
       }
+      case "max-color-cards": {
+        const count = condition.color === "black" ? state.blackCounts[condition.segment] : state.whiteCounts[condition.segment];
+        if (count > condition.count) return false;
+        break;
+      }
+      case "forbidden-values":
+        if (condition.values.some((value) => state.valueSets[condition.segment].has(value))) return false;
+        break;
       case "all-distinct":
         if (state.valueSets[condition.segment].size !== state.counts[condition.segment]) return false;
         break;

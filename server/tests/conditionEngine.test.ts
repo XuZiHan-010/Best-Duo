@@ -103,7 +103,84 @@ describe("conditionEngine", () => {
     expect(result.conditions).toHaveLength(9);
   });
 
-  it("evaluates placement order, segment colors, color minimums, and distinct values", () => {
+  it("requires a closest-to-value segment to be uniquely closest", () => {
+    const condition: Condition = { type: "closest-to-value", segment: 0, value: 6 };
+
+    const success = evaluateConditions(
+      [
+        [card("a", 5, "white", 1)],
+        [card("b", 8, "black", 2)],
+        [card("c", 9, "white", 3)],
+        [card("d", 10, "black", 4)],
+        [card("e", 11, "white", 5)],
+        [card("f", 12, "black", 6)]
+      ],
+      [condition]
+    );
+    expect(success.pass).toBe(true);
+
+    const tiedAroundTarget = evaluateConditions(
+      [
+        [card("a", 5, "white", 1)],
+        [card("b", 7, "black", 2)],
+        [card("c", 9, "white", 3)],
+        [card("d", 10, "black", 4)],
+        [card("e", 11, "white", 5)],
+        [card("f", 12, "black", 6)]
+      ],
+      [condition]
+    );
+    expect(tiedAroundTarget.pass).toBe(false);
+
+    const tiedAtTarget = evaluateConditions(
+      [
+        [card("a", 6, "white", 1)],
+        [card("b", 6, "black", 2)],
+        [card("c", 9, "white", 3)],
+        [card("d", 10, "black", 4)],
+        [card("e", 11, "white", 5)],
+        [card("f", 12, "black", 6)]
+      ],
+      [condition]
+    );
+    expect(tiedAtTarget.pass).toBe(false);
+  });
+
+  it("rejects forbidden values in constrained segments", () => {
+    const conditions: Condition[] = [
+      { type: "forbidden-values", segment: 0, values: [1, 2, 3] },
+      { type: "forbidden-values", segment: 2, values: [1, 2, 3] }
+    ];
+
+    const success = evaluateConditions(
+      [
+        [card("a", 4, "white", 1)],
+        [card("b", 1, "black", 2)],
+        [card("c", 6, "white", 3)],
+        [],
+        [],
+        []
+      ],
+      conditions
+    );
+    expect(success.pass).toBe(true);
+
+    const failed = evaluateConditions(
+      [
+        [card("a", 4, "white", 1)],
+        [card("b", 5, "black", 2)],
+        [card("c", 2, "white", 3)],
+        [],
+        [],
+        []
+      ],
+      conditions
+    );
+    expect(failed.pass).toBe(false);
+    expect(failed.conditions.map((entry) => entry.pass)).toEqual([true, false]);
+  });
+
+  it("evaluates placement order, segment colors, color minimums, color maximums, and distinct values", () => {
     const placements = [
       [card("third", 7, "white", 30)],
       [card("second", 4, "black", 20)],
@@ -118,12 +195,14 @@ describe("conditionEngine", () => {
       { type: "placement-order", order: 2, segment: 1 },
       { type: "segment-colors", segment: 2, black: 1, white: 1 },
       { type: "min-color-cards", segment: 5, color: "white", count: 2 },
+      { type: "max-color-cards", segment: 0, color: "black", count: 0 },
+      { type: "max-color-cards", segment: 1, color: "black", count: 0 },
       { type: "all-distinct", segment: 2 },
       { type: "all-distinct", segment: 5 },
       { type: "has-duplicate-value", segment: 5 }
     ]);
 
-    expect(result.conditions.map((entry) => entry.pass)).toEqual([true, true, true, false, true, false, true]);
+    expect(result.conditions.map((entry) => entry.pass)).toEqual([true, true, true, false, true, false, true, false, true]);
     expect(result.pass).toBe(false);
   });
 

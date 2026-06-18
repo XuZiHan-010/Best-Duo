@@ -11,8 +11,11 @@ const normalizeCondition = (condition: Condition): Condition => {
     case "sum-equals":
     case "sum-range":
     case "parity":
+    case "closest-to-value":
     case "segment-colors":
     case "min-color-cards":
+    case "max-color-cards":
+    case "forbidden-values":
     case "all-distinct":
     case "has-duplicate-value":
     case "placement-order":

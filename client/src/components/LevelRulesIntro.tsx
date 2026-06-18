@@ -10,6 +10,13 @@ interface LevelRulesIntroProps {
   onAccept: () => void;
 }
 
+const isGlobalCondition = (condition: Condition) =>
+  condition.type === "all-nonempty" ||
+  condition.type === "max-sum-each" ||
+  (condition.type === "non-decreasing" &&
+    condition.segments.length === 6 &&
+    condition.segments.every((segment, index) => segment === index));
+
 export function LevelRulesIntro({
   levelName,
   difficulty,
@@ -27,6 +34,7 @@ export function LevelRulesIntro({
     centerCap === "inf"
       ? "∞（无上限）"
       : `≤ ${centerCap ?? 24}`;
+  const specialConditions = conditions.filter((condition) => !isGlobalCondition(condition));
 
   return (
     <div
@@ -51,10 +59,10 @@ export function LevelRulesIntro({
         </section>
 
         {/* 本关特殊条件 */}
-        {conditions.length > 0 && (
+        {specialConditions.length > 0 && (
           <section aria-label="本关特殊条件">
             <h3 className="level-rules-intro__section-title">本关特殊条件</h3>
-            <ConditionList conditions={conditions} />
+            <ConditionList conditions={specialConditions} />
           </section>
         )}
 
