@@ -34,6 +34,7 @@ export const createGameRoom = (progress: ProgressState, levelsOrTotal: Challenge
   const levelSummaries = Array.isArray(levelsOrTotal) ? createLevelSummaries(levelsOrTotal) : [];
 
   return {
+    stateVersion: 0,
     capacity: settings.capacity,
     seats: createSeats(settings.capacity),
     ready: {},

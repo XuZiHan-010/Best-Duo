@@ -1,6 +1,7 @@
 import type { GameRoom, PublicHandCard, PublicRoomState } from "@take-time/shared";
 
 export const publicRoomState = (room: GameRoom): PublicRoomState => ({
+  stateVersion: room.stateVersion,
   capacity: room.capacity,
   seats: room.seats.map(({ socketId: _socketId, ...seat }) => seat),
   ready: room.ready,

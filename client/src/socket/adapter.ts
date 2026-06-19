@@ -52,4 +52,7 @@ export const adapter = {
   endGame() {
     socket.emit(ClientEvents.GameEnd);
   },
+  syncRoom() {
+    socket.emit(ClientEvents.RoomSync);
+  },
 };

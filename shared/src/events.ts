@@ -16,6 +16,7 @@ export const ClientEvents = {
   GameEnd: "game:end",
   HostBackToLevelSelect: "host:backToLevelSelect",
   GameContinueToResult: "game:continueToResult",
+  RoomSync: "room:sync",
   RoomReset: "room:reset"
 } as const;
 

@@ -35,7 +35,7 @@ import {
   startTurnTimer
 } from "../game/timers.js";
 import type { ProgressStore } from "../persistence/progressStore.js";
-import { emitRoomError, emitStateToAll } from "./emit.js";
+import { emitRoomError, emitStateToAll, emitStateToSocket } from "./emit.js";
 import {
   cardPlaceSchema,
   chatSendSchema,
@@ -413,10 +413,35 @@ export const registerHandlers = (ctx: HandlerContext) => {
     })
   );
 
+  socket.on(ClientEvents.RoomSync, () =>
+    run(socket, () => {
+      requireSeatId(socket);
+      console.log(JSON.stringify({ event: "room:sync_requested", socketId: socket.id, stateVersion: room.stateVersion }));
+      emitStateToSocket(socket, room, "room:sync");
+    })
+  );
+
   socket.on(ClientEvents.CardPlace, (payload) =>
     run(socket, async () => {
       const seatId = requireSeatId(socket);
       const parsed = cardPlaceSchema.parse(payload);
+      console.log(
+        JSON.stringify({
+          event: "card:place_received",
+          seatId,
+          cardId: parsed.cardId,
+          segment: parsed.segment,
+          stateVersion: room.stateVersion,
+          turn: room.turn,
+          pendingHint: room.pendingHint
+            ? {
+                seatId: room.pendingHint.seatId,
+                cardId: room.pendingHint.cardId,
+                segment: room.pendingHint.segment
+              }
+            : null
+        })
+      );
       applyPlacement(room, seatId, parsed);
       clearTurnTimers(room);
       if (room.pendingHint) {
@@ -426,13 +451,28 @@ export const registerHandlers = (ctx: HandlerContext) => {
             clearTurnTimers(room);
             await afterRevealIfNeeded(ctx);
             await continueTurnOrAgentHandoff(ctx);
-            emitStateToAll(io, room);
+            emitStateToAll(io, room, "hint:timeout");
           });
         });
       } else {
         await continueTurnOrAgentHandoff(ctx);
       }
-      emitStateToAll(io, room);
+      emitStateToAll(io, room, "card:place");
+      console.log(
+        JSON.stringify({
+          event: "card:place_broadcast_complete",
+          seatId,
+          stateVersion: room.stateVersion,
+          turn: room.turn,
+          pendingHint: room.pendingHint
+            ? {
+                seatId: room.pendingHint.seatId,
+                cardId: room.pendingHint.cardId,
+                segment: room.pendingHint.segment
+              }
+            : null
+        })
+      );
     })
   );
 

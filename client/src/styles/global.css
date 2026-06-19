@@ -124,13 +124,17 @@ input, textarea {
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 0 20px;
-  height: 48px;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: 0;
+  padding-left: max(20px, env(safe-area-inset-left, 0px));
+  padding-right: max(20px, env(safe-area-inset-right, 0px));
+  min-height: 48px;
   background: var(--bg-2);
   border-bottom: 1px solid var(--hairline);
   font-size: 13px;
   flex-shrink: 0;
   flex-wrap: wrap;
+  row-gap: 6px;
 }
 .topbar__brand { font-family: var(--font-display); font-size: 15px; color: var(--brass); letter-spacing: .05em; }
 .topbar__level { color: var(--ink-mut); }
@@ -751,6 +755,9 @@ input, textarea {
   pointer-events: none;          /* 容器不挡点击，徽标自行开启 */
   z-index: 3;
 }
+/* 同扇区徽标 + 幽灵卡堆并存时一左一右错开，避免重叠：徽标偏右，卡堆偏左 */
+.clock-hint--paired       { transform: translate(calc(-50% + 30px), -50%); }
+.clock-hint-cards--paired { transform: translate(calc(-50% - 30px), -50%); }
 .clock-hint__badge {
   pointer-events: auto;
   touch-action: manipulation;
@@ -964,11 +971,19 @@ input, textarea {
 /* ── Mobile placing layout (≤767px): no-scroll, clock always visible,
    hand rail pinned to the bottom, TopBar trimmed to level/timer/hints ── */
 @media (max-width: 767px) {
-  .topbar--placing .topbar__brand,
-  .topbar--placing .topbar__phase,
-  .topbar--placing .topbar__seats {
+  /* topbar: hide decorative labels in all phases; keep seats/timer/hints/end-btn */
+  .topbar__brand,
+  .topbar__phase {
     display: none;
   }
+  .topbar {
+    gap: 10px;
+    font-size: 12px;
+  }
+  .topbar__seats { gap: 4px; }
+  .topbar__seat-dot { width: 8px; height: 8px; }
+  .topbar__end-btn { font-size: 12px; padding: 4px 12px; height: 28px; }
+  .topbar__conn { flex-basis: 100%; text-align: right; }
 
   .placing {
     flex-direction: column;
@@ -1026,6 +1041,34 @@ input, textarea {
   /* Lobby: stack seats full-width on mobile */
   .lobby__seats { flex-direction: column; }
   .player-seat { min-width: unset; width: 100%; }
+
+  /* ── Reveal/Result: vertical scrollable layout ── */
+  .reveal__main {
+    flex-direction: column;
+    overflow-y: auto;
+    gap: 0;
+  }
+  .reveal__clock-col {
+    flex: none;
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--hairline);
+    padding: 16px;
+  }
+  .reveal__clock-col .clock-board {
+    width: min(78vw, 300px);
+    min-width: 240px;
+    max-width: 300px;
+  }
+  .reveal__conditions-col {
+    width: 100%;
+    flex-shrink: 1;
+    padding: 16px;
+    overflow-y: visible;
+  }
+  .reveal__continue {
+    padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  }
 }
 
 /* ── HintPrompt ── */
