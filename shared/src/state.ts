@@ -103,6 +103,7 @@ export interface TimerHandles {
 }
 
 export interface GameRoom {
+  stateVersion: number;
   capacity: 2 | 3 | 4;
   seats: Seat[];
   ready: Partial<Record<SeatId, boolean>>;
@@ -129,6 +130,7 @@ export interface GameRoom {
 }
 
 export interface PublicRoomState {
+  stateVersion: number;
   capacity: 2 | 3 | 4;
   seats: Omit<Seat, "socketId">[];
   ready: Partial<Record<SeatId, boolean>>;

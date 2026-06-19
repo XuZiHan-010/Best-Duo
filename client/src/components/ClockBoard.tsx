@@ -181,6 +181,13 @@ export function ClockBoard({
   }
   // 段内幽灵卡提示（exact-cards / segment-colors）
   const segmentHintCards = conditions ? buildSegmentHintCards(conditions) : new Map<number, SegmentHintStack>();
+  // 同一扇区既有边缘徽标又有幽灵卡堆时，两层会重叠 → 标记为「成对」，渲染时一左一右错开。
+  const pairedSegments = new Set<number>();
+  for (let i = 0; i < 6; i++) {
+    const hasBadge = (hintsBySegment.get(i)?.length ?? 0) > 0;
+    const hasCards = (segmentHintCards.get(i)?.cards.length ?? 0) > 0;
+    if (hasBadge && hasCards) pairedSegments.add(i);
+  }
   const hasForced = forcedSegment !== null && forcedSegment !== undefined;
   return (
     <div className="clock-board">
@@ -298,7 +305,7 @@ export function ClockBoard({
         return (
           <div
             key={i}
-            className={`clock-hint${isForced ? " clock-hint--forced" : ""}`}
+            className={`clock-hint${isForced ? " clock-hint--forced" : ""}${pairedSegments.has(i) ? " clock-hint--paired" : ""}`}
             style={{ left: `${pos.pctX}%`, top: `${pos.pctY}%` }}
           >
             {badges.map((b, j) => (
@@ -323,7 +330,7 @@ export function ClockBoard({
         return (
           <div
             key={i}
-            className="clock-hint-cards"
+            className={`clock-hint-cards${pairedSegments.has(i) ? " clock-hint-cards--paired" : ""}`}
             style={{ left: `${pos.pctX}%`, top: `${pos.pctY}%` }}
             tabIndex={0}
             aria-label={stack.tip}
