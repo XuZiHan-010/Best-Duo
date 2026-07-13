@@ -1,5 +1,6 @@
 import type { Card, GameRoom, HandCard } from "@take-time/shared";
 import { dealRules } from "./dealRules.js";
+import { occupiedPlayerCount, occupiedSeats } from "./room.js";
 import { canSolveDeal, type SolverCard } from "./solver.js";
 
 const shuffle = <T>(values: T[]) => {
@@ -25,8 +26,8 @@ export const buildCardPool = (): Card[] => {
 export const dealHands = (room: GameRoom) => {
   if (!room.currentChallenge) throw new Error("No challenge selected");
 
-  const seated = room.seats.filter((seat) => seat.nick);
-  const rule = dealRules[room.capacity];
+  const seated = occupiedSeats(room);
+  const rule = dealRules[occupiedPlayerCount(room)];
   const neededCards = seated.length * rule.handSize;
   const maxAttempts = 500;
 
@@ -72,11 +73,11 @@ export const dealHands = (room: GameRoom) => {
 };
 
 export const revealRemainingBlindCardsIfNeeded = (room: GameRoom) => {
-  const rule = dealRules[room.capacity];
+  const rule = dealRules[occupiedPlayerCount(room)];
   const revealRemainingAfter = rule.revealRemainingAfter;
   if (revealRemainingAfter === null) return;
 
-  const seated = room.seats.filter((seat) => seat.nick);
+  const seated = occupiedSeats(room);
   if (seated.length === 0) return;
   if (seated.some((seat) => (room.playedCount[seat.id] ?? 0) < revealRemainingAfter)) return;
 

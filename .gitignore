@@ -11,7 +11,17 @@ npm-debug.log*
 .tmp/
 .tmp-e2e-data/
 .superpowers/
+# scratch logs & agent tooling (not part of the app)
+*.log
+.agents/
+.codex-runlogs/
 client/test-results/
 client/playwright-report/
 client/blob-report/
-plans/
+# plans/ 默认保留为本地工作区；以下现行/被引用文档进入版本控制，避免 docs 中的链接在仓库里断开。
+plans/*
+!plans/m9-agent-implementation-plan.md
+!plans/agent-model-selection-decision.md
+!plans/multiplayer-and-ai-agent-plan.md
+!plans/mobile-responsive-fixes.md
+!plans/2026-07-10-mobile-gameplay-viewport-fixes.md

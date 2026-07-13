@@ -11,7 +11,7 @@ export const defaultSettings: RoomSettings = {
   discussionMinutes: 5,
   thinkSeconds: 5,
   hintMarkerCount: 3,
-  capacity: 2
+  capacity: 4
 };
 
 export const config = {

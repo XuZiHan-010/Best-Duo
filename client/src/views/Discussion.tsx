@@ -53,15 +53,15 @@ export function Discussion() {
               ▶ 提前开始出牌
             </button>
           )}
-          {!isHost && (
-            <p className="view-stub" style={{ fontSize: 13 }}>
-              等待房主或倒计时结束…
-            </p>
-          )}
-          {isOffline && (
-            <p className="view-stub" style={{ fontSize: 13 }}>
-              正在恢复连接，操作暂停…
-            </p>
+          {(!isHost || isOffline) && (
+            <div className="discussion__status-group" role="status" aria-live="polite">
+              {!isHost && (
+                <p className="discussion__status">等待房主或倒计时结束…</p>
+              )}
+              {isOffline && (
+                <p className="discussion__status">正在恢复连接，操作暂停…</p>
+              )}
+            </div>
           )}
         </div>
 

@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures.js";
 import { resetRoom, setupTwoPlayersInPlacing } from "./helpers.js";
 
 test.beforeEach(resetRoom);

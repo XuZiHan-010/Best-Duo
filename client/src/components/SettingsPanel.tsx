@@ -1,4 +1,3 @@
-import React from "react";
 import type { RoomSettings } from "@take-time/shared";
 import { Pill } from "./Pill.js";
 import { adapter } from "../socket/adapter.js";
@@ -9,14 +8,14 @@ interface SettingsPanelProps {
 }
 
 const DISCUSSION_OPTIONS = [
-  { value: 5  as const, label: "5 分" },
+  { value: 5 as const, label: "5 分" },
   { value: 10 as const, label: "10 分" },
   { value: 15 as const, label: "15 分" },
   { value: 20 as const, label: "20 分" },
 ];
 
 const THINK_OPTIONS = [
-  { value: 5  as const, label: "5 秒" },
+  { value: 5 as const, label: "5 秒" },
   { value: 10 as const, label: "10 秒" },
   { value: 15 as const, label: "15 秒" },
   { value: 20 as const, label: "20 秒" },
@@ -73,17 +72,10 @@ export function SettingsPanel({ settings, isHost }: SettingsPanelProps) {
         <span className="settings-panel__hint-note">（全队共用）</span>
       </div>
 
-      {/* 以下为扩展占位（M8/M9），MVP 锁定 */}
-      <div className="settings-panel__row settings-panel__row--locked">
-        <span className="settings-panel__label">人数</span>
-        <Pill
-          name="人数"
-          options={[{ value: 2 as const, label: "2 人" }]}
-          value={2}
-          disabled
-          onChange={() => undefined}
-        />
-        <span className="settings-panel__hint-note">（3/4 人 M8 开放）</span>
+      <div className="settings-panel__row settings-panel__row--note">
+        <span className="settings-panel__label">开局人数</span>
+        <span className="settings-panel__static">2-4 名玩家</span>
+        <span className="settings-panel__hint-note">真人和 AI 均可；所有真人准备后即可开始。</span>
       </div>
     </div>
   );

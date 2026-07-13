@@ -1,4 +1,6 @@
-# Take Time 单房间双人 Web 原型设计方案
+# Take Time 单房间双人 Web 原型设计方案（V1 历史基线）
+
+> 状态：**superseded**。本文保留 V1 双人原型的设计演进，不再作为当前 2–4 人与 Agent 架构口径。现行架构见 [architecture.md](architecture.md)，游戏规则见 [rules.md](../rules.md)。
 
 ## 项目目标
 
@@ -34,7 +36,7 @@
 - 前端：Vite + React + TypeScript
 - 后端：Express + Socket.IO
 - 运行时状态：服务端单进程内存对象（房间、当前对局）
-- 进度持久化：Railway Volume 上的一个 JSON 文件（或轻量 DB），仅存“已通关进度 + 设置”这类需要跨重启保留的数据
+- 进度持久化：V1 使用 Railway Volume JSON；面试版本目标迁移到 PostgreSQL，详见当前架构与 ADR-0001。
 - 部署：Railway 单服务部署
 
 Railway 上只需要一个 Web 服务。构建时生成前端静态文件，运行时由 Express 提供页面，并通过 Socket.IO 处理两名玩家之间的实时同步。进行中的对局放内存，已通关进度落盘到 Volume。
@@ -97,13 +99,14 @@ PlacedCard{ owner, value, revealed }      // revealed=true 表示用了提示标
 Challenge {
   id, name, levelIndex,
   segmentCount: 6,
-  centerCap: number | null,  // 时钟中心值：null = ∞（每区段无上限）；数字 = 每段总和 ≤ 该值
-  deck: number[12],          // 该关使用的 12 张牌（数值待定）
+  centerCap: number | "inf" | null, // null/省略 = 默认24；"inf" = 无限；数字 = 每段上限
   conditions: Condition[]    // 本关需同时满足的条件（组合 = AND）
 }
 ```
 
-> `centerCap` 是**时钟（关卡）级**属性，对全部 6 个区段统一生效；加载关卡时按「每段总和 ≤ centerCap」并入条件校验（等价于一条 `max-sum-each` 条件），`null` 时不施加上限。前端把它显示在钟面中心（数字或 ∞）。详见 [rules.md · 时钟中心值](../rules.md) 与 [关卡词汇表](../levels/README.md)。
+牌库不属于关卡：运行时固定使用白色 1–12 与黑色 1–12 共 24 张，每次 attempt 随机抽 12 张并通过求解器校验可解性。
+
+> `centerCap` 是**时钟（关卡）级**属性，对全部 6 个区段统一生效；`null`/省略时按默认 24，`"inf"` 时不施加上限。前端把它显示在钟面中心。详见 [rules.md · 时钟中心值](../rules.md) 与 [关卡词汇表](../levels/README.md)。
 
 条件类型（覆盖原创挑战，避免复刻官方关卡）：
 
@@ -158,7 +161,7 @@ Challenge {
    - 之后**严格交替**（先手方 → 另一方 → 交替，直到 12 张放完，自然每人 6 张）。
    - 每次出牌：选 1 张手牌（含盲牌）面朝下放到任意区段（区段 0–5，可放多张）；不能移动或查看已暗置的牌。
    - **出牌后进入提示决策子步骤**（`pendingHint`）：游戏暂停，5 秒 yes/no，决议后才换手。
-   - 当某玩家自己打满 2 张后，翻开其剩余暗牌（仅对本人）。
+   - 当双方都各自累计打出 2 张后，分别翻开各自剩余暗牌（仅对持有者本人；该条已按现行规则回写）。
    - 界面显示当前出牌倒计时与提示决策倒计时。
    - **超时判负**：抢出牌期双方都没出 → 判负；交替期当前玩家超时未出 → 判负。（提示窗口超时不判负。）
    - 12 张全部放完后**自动**进入 `reveal`。
@@ -216,7 +219,7 @@ Challenge {
 - 交替期是否轮到该玩家出牌；玩家是否拥有要出的那张牌；**盲牌允许打出**（不得因 `visibleToOwner=false` 拒绝）。
 - 当前玩家是否在思考倒计时内完成出牌（超时判负）。
 - `hint:decide` 仅在 `pendingHint` 期、由该出牌玩家、在 deadline 前有效；标记不得超额。
-- 玩家自己打满 2 张后翻开其剩余暗牌。
+- 双方都各自累计打出 2 张后，分别向各自持有者翻开剩余暗牌。
 - 是否已经放满 12 张牌；揭示时是否满足当前关卡条件。
 - 通关后写入 `progress.clearedLevels` 并落盘持久化。
 
@@ -224,7 +227,7 @@ Challenge {
 
 ## Railway 部署假设
 
-初版可以直接部署在 Railway 的单实例 Node 环境中。
+V1 可以直接部署在 Railway 的单实例 Node 环境中；当前持久化演进目标见 [architecture.md](architecture.md)。
 
 - 使用 `npm run build` 构建前端。
 - 使用 `npm start` 启动 Express + Socket.IO 服务。

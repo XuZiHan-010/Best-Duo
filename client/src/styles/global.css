@@ -11,6 +11,8 @@ html, body, #root {
 }
 
 body {
+  min-height: 100vh;   /* fallback for browsers without dvh */
+  min-height: 100dvh;
   font-family: var(--font-body);
   background-color: var(--bg-1);
   color: var(--ink);
@@ -160,7 +162,12 @@ input, textarea {
 @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.5; } }
 
 /* ── RoomView ── */
-.room-view { display: flex; flex-direction: column; height: 100%; }
+.room-view {
+  display: flex; flex-direction: column;
+  height: 100vh;       /* fallback for browsers without dvh */
+  height: 100dvh;
+  min-height: 0;
+}
 .skip-link {
   position: absolute;
   left: 8px; top: -48px;
@@ -172,7 +179,19 @@ input, textarea {
   transition: top var(--dur-fast) var(--ease);
 }
 .skip-link:focus { top: 8px; }
-.room-view__main { flex: 1; display: flex; flex-direction: column; overflow: auto; }
+/* Single page-level vertical scroll owner for every phase view. Children use
+   overflow:visible + natural height on mobile (see §4.2) and let this element
+   own the scroll — no nested/competing scroll containers.
+   overflow-x:hidden (not clip): with a scrolling y-axis, clip computes to
+   hidden anyway, so this matches the effective behaviour. */
+.room-view__main {
+  flex: 1; display: flex; flex-direction: column;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
 
 /* ── Toast ── */
 .toast {
@@ -968,119 +987,24 @@ input, textarea {
   .player-seat { min-width: 160px; padding: 16px; }
 }
 
-/* ── Mobile placing layout (≤767px): no-scroll, clock always visible,
-   hand rail pinned to the bottom, TopBar trimmed to level/timer/hints ── */
-@media (max-width: 767px) {
-  /* topbar: hide decorative labels in all phases; keep seats/timer/hints/end-btn */
-  .topbar__brand,
-  .topbar__phase {
-    display: none;
-  }
-  .topbar {
-    gap: 10px;
-    font-size: 12px;
-  }
-  .topbar__seats { gap: 4px; }
-  .topbar__seat-dot { width: 8px; height: 8px; }
-  .topbar__end-btn { font-size: 12px; padding: 4px 12px; height: 28px; }
-  .topbar__conn { flex-basis: 100%; text-align: right; }
-
-  .placing {
-    flex-direction: column;
-    overflow: hidden;
-  }
-
-  .placing__center {
-    order: 1;
-    flex: 1;
-    min-height: 0;
-    padding: 8px 16px;
-  }
-  .placing__center .clock-board { max-width: 260px; }
-
-  .placing__right {
-    order: 2;
-    width: auto;
-    flex-direction: row;
-    border-left: none;
-    border-top: 1px solid var(--hairline);
-  }
-  .placing__right-section {
-    flex: 1;
-    padding: 8px 10px;
-    border-bottom: none;
-    border-right: 1px solid var(--hairline);
-  }
-  .placing__right-section:last-child { border-right: none; }
-  .placing__big-timer { font-size: 22px; }
-
-  /* Compact teammate display in the right strip */
-  .placing__right .placing__player { flex-direction: row; gap: 6px; align-items: center; }
-  .placing__right .placing__player-meta { display: none; }
-  .placing__right .placing__right-label { display: none; }
-
-  .placing__left {
-    order: 3;
-    width: auto;
-    flex-shrink: 0;
-    align-items: center;
-    border-right: none;
-    border-top: 1px solid var(--hairline);
-    padding: 8px 14px calc(8px + env(safe-area-inset-bottom));
-    overflow-y: visible;
-  }
-  .placing__left .rules-panel { display: none; }
-  /* Compact self-header on mobile: inline row, hide role label */
-  .placing__left .placing__player { flex-direction: row; gap: 8px; align-items: center; margin-bottom: 4px; }
-  .placing__left .placing__player-role { display: none; }
-  .placing__hand-section { align-items: center; }
-  .hand-rail {
-    grid-template-columns: repeat(3, 68px);
-    justify-content: center;
-  }
-  /* Lobby: stack seats full-width on mobile */
-  .lobby__seats { flex-direction: column; }
-  .player-seat { min-width: unset; width: 100%; }
-
-  /* ── Reveal/Result: vertical scrollable layout ── */
-  .reveal__main {
-    flex-direction: column;
-    overflow-y: auto;
-    gap: 0;
-  }
-  .reveal__clock-col {
-    flex: none;
-    width: 100%;
-    border-right: none;
-    border-bottom: 1px solid var(--hairline);
-    padding: 16px;
-  }
-  .reveal__clock-col .clock-board {
-    width: min(78vw, 300px);
-    min-width: 240px;
-    max-width: 300px;
-  }
-  .reveal__conditions-col {
-    width: 100%;
-    flex-shrink: 1;
-    padding: 16px;
-    overflow-y: visible;
-  }
-  .reveal__continue {
-    padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
-  }
-}
 
 /* ── HintPrompt ── */
+/* Fixed to the viewport (not absolute within .placing): once the placing view
+   grows past one screen and the page scrolls, an absolutely-positioned overlay
+   would centre inside the tall container and could sit off-screen. This dialog
+   is a timed, blocking decision, so it must stay centred in the viewport at any
+   scroll position. */
 .hint-prompt-backdrop {
-  position: absolute;
+  position: fixed;
   inset: 0;
   background: rgba(6,10,18,.72);
   backdrop-filter: blur(3px);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 50;
+  padding: 16px;
+  z-index: 100;
+  overscroll-behavior: contain;
 }
 .hint-prompt {
   background: var(--bg-2);
@@ -1282,6 +1206,24 @@ input, textarea {
 }
 .discussion__chat-col { flex: 2; display: flex; flex-direction: column; min-height: 0; }
 .discussion__begin-btn { width: auto; }
+/* Waiting/reconnecting notices: sit in normal flow just under the clock and
+   take only their text height (no flex-grow), so they never overlay the clock
+   or push the conditions bar out of reach — unlike the .view-stub (flex:1)
+   they replace. */
+.discussion__status-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+.discussion__status {
+  margin: 0;
+  color: var(--ink-mut);
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: center;
+}
 .discussion__conditions {
   border-top: 1px solid var(--hairline);
   padding: 10px 24px;
@@ -1351,3 +1293,299 @@ input, textarea {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .placing__player-role { font-size: 11px; color: var(--ink-dim); }
+
+/* M8/M9 flexible lobby and agent seats */
+.lobby__summary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  color: var(--ink-mut);
+  font-size: 12px;
+}
+.lobby__summary span {
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-pill);
+  padding: 3px 9px;
+  background: rgba(255,255,255,.02);
+}
+.player-seat--agent {
+  border-color: rgba(79,209,197,.35);
+}
+.player-seat__agent-badge {
+  font-size: 11px;
+  color: var(--turn);
+  background: rgba(79,209,197,.1);
+  border: 1px solid rgba(79,209,197,.25);
+  border-radius: var(--r-pill);
+  padding: 2px 8px;
+}
+.player-seat__agent-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.player-seat__remove-btn {
+  padding: 5px 10px;
+  font-size: 12px;
+}
+.settings-panel__static {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--brass);
+}
+.settings-panel__row--note {
+  align-items: baseline;
+}
+.placing__right-section--teammates {
+  overflow-y: auto;
+}
+.placing__teammate-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+@media (max-width: 767px) {
+  .placing__teammate-list {
+    flex-direction: row;
+    gap: 8px;
+    overflow-x: auto;
+  }
+  .placing__right-section--teammates {
+    min-width: 0;
+  }
+}
+
+/* ═══ Mobile / short-landscape layout overrides ═══
+   Kept at the END of the file on purpose: media queries do not add
+   specificity, so these must come after every base rule they override
+   (.reveal__main, .discussion__main, etc. are defined above). */
+
+/* ── Mobile shared (≤767px, orientation-neutral) ──
+   Only rules that must hold in BOTH portrait and short-landscape live here:
+   TopBar trim, lobby stacking, hand-rail grid, compact headers, right-strip
+   sizing, and the Reveal vertical stack. Orientation-specific placing/
+   discussion layouts live in the portrait / landscape blocks below (§4.3). */
+@media (max-width: 767px) {
+  /* topbar: hide decorative labels in all phases; keep seats/timer/hints/end-btn */
+  .topbar__brand,
+  .topbar__phase {
+    display: none;
+  }
+  .topbar {
+    gap: 10px;
+    font-size: 12px;
+  }
+  .topbar__seats { gap: 4px; }
+  .topbar__seat-dot { width: 8px; height: 8px; }
+  .topbar__end-btn { font-size: 12px; padding: 4px 12px; height: 28px; }
+  .topbar__conn { flex-basis: 100%; text-align: right; }
+
+  /* Right column becomes a horizontal info strip in both orientations */
+  .placing__right {
+    width: auto;
+    flex-direction: row;
+    border-left: none;
+  }
+  .placing__right-section {
+    flex: 1;
+    padding: 8px 10px;
+    border-bottom: none;
+    border-right: 1px solid var(--hairline);
+  }
+  .placing__right-section:last-child { border-right: none; }
+  .placing__big-timer { font-size: 22px; }
+
+  /* Compact teammate display in the right strip */
+  .placing__right .placing__player { flex-direction: row; gap: 6px; align-items: center; }
+  .placing__right .placing__player-meta { display: none; }
+  .placing__right .placing__right-label { display: none; }
+
+  .placing__left {
+    width: auto;
+    flex-shrink: 0;
+    align-items: center;
+    border-right: none;
+    overflow-y: visible;
+  }
+  .placing__left .rules-panel { display: none; }
+  /* Compact self-header on mobile: inline row, hide role label */
+  .placing__left .placing__player { flex-direction: row; gap: 8px; align-items: center; margin-bottom: 4px; }
+  .placing__left .placing__player-role { display: none; }
+  .placing__hand-section { align-items: center; }
+  .hand-rail {
+    grid-template-columns: repeat(3, 68px);
+    justify-content: center;
+  }
+  /* Lobby: stack seats full-width on mobile */
+  .lobby__seats { flex-direction: column; }
+  .player-seat { min-width: unset; width: 100%; }
+
+  /* ── Reveal: vertical stack; scroll is owned by .room-view__main (§4.1).
+     overflow:visible overrides the desktop rule's overflow:auto — an internal
+     scroll here would nest scroll containers on mobile. */
+  .reveal__main {
+    flex-direction: column;
+    gap: 0;
+    overflow: visible;
+  }
+  .reveal__clock-col {
+    flex: none;
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--hairline);
+    padding: 16px;
+  }
+  .reveal__clock-col .clock-board {
+    width: min(78vw, 300px);
+    min-width: 240px;
+    max-width: 300px;
+  }
+  .reveal__conditions-col {
+    width: 100%;
+    flex-shrink: 1;
+    padding: 16px;
+    overflow-y: visible;
+  }
+  .reveal__continue {
+    padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* ── Mobile natural height (§4.2) ──
+   Phase views grow to their content and let .room-view__main own the scroll
+   instead of clipping into one screen. If percentage min-height ever proves
+   flaky in a target browser, fall back to min-block-size:100% here. */
+@media (max-width: 767px),
+       (orientation: landscape) and (max-height: 600px) {
+  .placing,
+  .discussion,
+  .reveal {
+    flex: 0 0 auto;
+    min-height: 100%;
+    overflow: visible;
+  }
+}
+
+/* ── Mobile portrait: single-column natural flow (§5.1 / §6.2) ── */
+@media (max-width: 767px) and (orientation: portrait) {
+  /* Placing: clock+badge → info strip → hand, all in normal flow */
+  .placing { flex-direction: column; }
+
+  .placing__center {
+    order: 1;
+    flex: none;
+    min-height: auto;
+    padding: 12px 16px 16px;
+    gap: 12px;
+  }
+  .placing__turn-badge {
+    position: relative;
+    z-index: 4;
+    flex-shrink: 0;
+    max-width: calc(100vw - 32px);
+    text-align: center;
+  }
+  /* margin reserves real visual room for the clock's outer badges/ghosts,
+     which overflow the square box — z-index alone can't create space. */
+  .placing__center .clock-board {
+    flex: none;
+    width: min(78vw, 280px);
+    max-width: none;
+    margin-block: 18px;
+  }
+
+  .placing__right {
+    order: 2;
+    border-top: 1px solid var(--hairline);
+  }
+  .placing__left {
+    order: 3;
+    border-top: 1px solid var(--hairline);
+    padding: 8px 14px calc(8px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Discussion: clock + status → chat → conditions, all vertical */
+  .discussion__main {
+    flex: 0 0 auto;
+    flex-direction: column;
+    min-height: auto;
+    overflow: visible;
+  }
+  .discussion__clock-col {
+    flex: none;
+    width: 100%;
+    justify-content: flex-start;
+    gap: 12px;
+    padding: 16px;
+    border-right: none;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .discussion__clock-col .clock-board {
+    flex: none;
+    width: min(78vw, 300px);
+    margin-block: 16px;
+  }
+  .discussion__chat-col {
+    flex: none;
+    min-height: 260px;
+    height: min(42dvh, 360px);
+  }
+  .discussion__conditions {
+    padding: 14px 16px calc(14px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* ── Short landscape phones (§5.2 / §6.3) ──
+   Keyed on available height, not device width. Known tradeoff: a desktop
+   window dragged short (e.g. 1440×550) also lands here — accepted, since a
+   height-driven two-zone + scroll layout beats a squashed desktop three-column
+   one, and we don't maintain a device whitelist. */
+@media (orientation: landscape) and (max-height: 600px) {
+  /* Placing: two zones (clock | hand/status), page still scrolls. Explicitly
+     re-declares display/overflow so it wins over the ≤767px shared block. */
+  .placing {
+    display: grid;
+    grid-template-columns: minmax(280px, 1.05fr) minmax(300px, .95fr);
+    grid-template-areas:
+      "clock hand"
+      "clock status";
+    align-items: start;
+    overflow: visible;
+  }
+  .placing__center { grid-area: clock; }
+  .placing__left   { grid-area: hand; width: auto; }
+  .placing__right  { grid-area: status; width: auto; flex-direction: row; border-top: none; }
+  .placing__left .rules-panel { display: none; }
+  .placing__center .clock-board {
+    width: clamp(240px, 38vw, 320px);
+    max-width: none;
+    flex: none;
+  }
+
+  /* Discussion: keep clock | chat, but the main row is no longer starved of
+     height — .room-view__main provides real scroll when content is taller. */
+  .discussion__main {
+    flex: 0 0 auto;
+    min-height: 300px;
+    overflow: visible;
+  }
+  .discussion__clock-col {
+    flex: 1 1 52%;
+    justify-content: flex-start;
+    padding: 12px 16px;
+  }
+  .discussion__clock-col .clock-board {
+    flex: none;
+    width: clamp(240px, 38vw, 320px);
+    margin-block: 12px;
+  }
+  .discussion__chat-col {
+    flex: 1 1 48%;
+    min-width: 280px;
+    height: 320px;
+  }
+}

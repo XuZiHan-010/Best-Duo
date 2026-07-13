@@ -1,12 +1,14 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { useRoomStore } from "../store/useRoomStore.js";
 import {
   hintLeftSelector,
   isMyTurnSelector,
+  myHandTotalSelector,
+  myPlayedCountSelector,
   mySeatIdSelector,
   mySeatSelector,
-  teammateSeatSelector,
-  myPlayedCountSelector,
+  teammateSeatsSelector,
   totalPlacedSelector,
 } from "../store/selectors.js";
 import { adapter } from "../socket/adapter.js";
@@ -19,26 +21,30 @@ import { HintPrompt } from "../components/HintPrompt.js";
 import { RulesPanel } from "../components/RulesPanel.js";
 
 export function Placing() {
-  const roomState   = useRoomStore((s) => s.roomState);
-  const myHand      = useRoomStore((s) => s.myHand);
-  const timer       = useRoomStore((s) => s.timer);
-  const lastError   = useRoomStore((s) => s.lastError);
-  const isMyTurn    = useRoomStore(isMyTurnSelector);
-  const hintLeft    = useRoomStore(hintLeftSelector);
-  const mySeatId    = useRoomStore(mySeatIdSelector);
-  const mySeat      = useRoomStore(mySeatSelector);
-  const teammate    = useRoomStore(teammateSeatSelector);
-  const myPlayed    = useRoomStore(myPlayedCountSelector);
+  const roomState = useRoomStore((s) => s.roomState);
+  const myHand = useRoomStore((s) => s.myHand);
+  const timer = useRoomStore((s) => s.timer);
+  const lastError = useRoomStore((s) => s.lastError);
+  const isMyTurn = useRoomStore(isMyTurnSelector);
+  const hintLeft = useRoomStore(hintLeftSelector);
+  const mySeatId = useRoomStore(mySeatIdSelector);
+  const mySeat = useRoomStore(mySeatSelector);
+  // useShallow: the selector filters seats into a NEW array on every call;
+  // without shallow comparison the unstable snapshot re-renders forever
+  // (React #185) the moment Placing mounts.
+  const teammates = useRoomStore(useShallow(teammateSeatsSelector));
+  const myPlayed = useRoomStore(myPlayedCountSelector);
+  const handTotal = useRoomStore(myHandTotalSelector);
   const totalPlaced = useRoomStore(totalPlacedSelector);
-  const connState   = useRoomStore((s) => s.connectionState);
-  const isOffline   = connState === "reconnecting" || connState === "disconnected";
+  const connState = useRoomStore((s) => s.connectionState);
+  const isOffline = connState === "reconnecting" || connState === "disconnected";
 
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
 
-  const leftRef   = useRef<HTMLDivElement>(null);
+  const leftRef = useRef<HTMLDivElement>(null);
   const centerRef = useRef<HTMLDivElement>(null);
-  const rightRef  = useRef<HTMLDivElement>(null);
+  const rightRef = useRef<HTMLDivElement>(null);
 
   const prevRoomStateRef = useRef(roomState);
   useEffect(() => {
@@ -84,17 +90,16 @@ export function Placing() {
     return <div className="view-stub">加载关卡中...</div>;
   }
 
-  const { currentChallenge, placements, turn, hintMarkers } = roomState;
-  const isTeammateDeciding = !!pendingHint && pendingHint.seatId !== mySeatId;
-  const isTeammateTurn = !pendingHint && (turn === "race" || (teammate ? turn === teammate.id : false));
+  const { currentChallenge, placements, turn, hintMarkers, seats } = roomState;
+  const isRace = turn === "race";
   const isLocked = !isMyTurn || isPending || isOffline || !!pendingHint;
-  const isRace   = turn === "race";
+  const turnSeat = turn && turn !== "race" ? seats.find((seat) => seat.id === turn) : null;
+  const pendingHintSeat = pendingHint ? seats.find((seat) => seat.id === pendingHint.seatId) : null;
+  const activeName = pendingHintSeat?.nick ?? turnSeat?.nick ?? "队友";
+  const activeIsAgent = (pendingHintSeat ?? turnSeat)?.kind === "agent";
 
-  const teammateName = teammate?.nick ?? "队友";
-  const teammatePlayed = totalPlaced - myPlayed;
-  const myHandTotal = (myHand?.length ?? 0) + myPlayed;
-  const myHandRemaining = myHand?.length ?? 0;
-  const teammateHandRemaining = Math.max(0, myHandTotal - teammatePlayed);
+  const placedBySeat = (seatId: string) =>
+    placements.reduce((count, segment) => count + segment.filter((card) => card.owner === seatId).length, 0);
 
   const nextOrder = totalPlaced + 1;
   const forcedSegment =
@@ -112,7 +117,7 @@ export function Placing() {
             <Avatar src={mySeat?.avatar} nick={mySeat?.nick ?? null} size={52} active={isMyTurn && !pendingHint} />
             <div className="placing__player-meta">
               <span className="placing__player-nick">{mySeat?.nick ?? "我"}</span>
-              <span className="placing__player-role">你</span>
+              <span className="placing__player-role">你 · {Math.max(0, handTotal - myPlayed)}/{handTotal}</span>
             </div>
           </div>
           <p className="placing__hand-label">我的手牌</p>
@@ -132,7 +137,7 @@ export function Placing() {
       <div className="placing__center" ref={centerRef}>
         {pendingHint ? (
           <p className="placing__turn-badge placing__turn-badge--hint">
-            {isMyHintDecision ? "决定是否使用提示标记" : `等待 ${teammateName} 决定是否使用提示标记`}
+            {isMyHintDecision ? "决定是否使用提示标记" : `等待 ${activeName} 决定是否使用提示标记${activeIsAgent ? "..." : ""}`}
           </p>
         ) : isRace ? (
           <p className="placing__turn-badge placing__turn-badge--race">抢先手！</p>
@@ -140,7 +145,7 @@ export function Placing() {
           <p className="placing__turn-badge">轮到你出牌</p>
         ) : (
           <p className="placing__turn-badge placing__turn-badge--wait">
-            等待 {teammateName} 出牌...
+            等待 {activeName} 出牌{activeIsAgent ? "，AI 思考中..." : "..."}
           </p>
         )}
 
@@ -194,26 +199,38 @@ export function Placing() {
           <p className="placing__hints-remain">剩余 {hintLeft} / {hintMarkers.total}</p>
         </div>
 
-        <div className="placing__right-section">
+        <div className="placing__right-section placing__right-section--teammates">
           <p className="placing__right-label">队友</p>
-          {teammate ? (
-            <div className={`placing__player${isTeammateTurn ? " placing__player--active" : ""}`}>
-              <div className="placing__player-avatar-col">
-                <Avatar src={teammate.avatar} nick={teammate.nick} size={52} active={isTeammateTurn} />
-                <span className="placing__teammate-hand">{teammateHandRemaining}/{myHandTotal}</span>
-              </div>
-              <div className="placing__player-meta">
-                <span className="placing__player-nick">{teammate.nick}</span>
-                <span className="placing__opponent-status">
-                  {isTeammateDeciding ? (
-                    <span style={{ color: "var(--warn)" }}>决定提示标记中...</span>
-                  ) : isTeammateTurn ? (
-                    <span style={{ color: "var(--turn)" }}>出牌中...</span>
-                  ) : (
-                    "等待中..."
-                  )}
-                </span>
-              </div>
+          {teammates.length > 0 ? (
+            <div className="placing__teammate-list">
+              {teammates.map((teammate) => {
+                const isDeciding = pendingHint?.seatId === teammate.id;
+                const isTakingTurn = !pendingHint && (turn === "race" || turn === teammate.id);
+                const played = placedBySeat(teammate.id);
+                const remaining = Math.max(0, handTotal - played);
+                return (
+                  <div key={teammate.id} className={`placing__player${isTakingTurn ? " placing__player--active" : ""}`}>
+                    <div className="placing__player-avatar-col">
+                      <Avatar src={teammate.avatar} nick={teammate.nick} size={52} active={isTakingTurn || isDeciding} />
+                      <span className="placing__teammate-hand">{remaining}/{handTotal}</span>
+                    </div>
+                    <div className="placing__player-meta">
+                      <span className="placing__player-nick">{teammate.nick}</span>
+                      <span className="placing__opponent-status">
+                        {isDeciding ? (
+                          <span style={{ color: "var(--warn)" }}>决定提示标记中...</span>
+                        ) : isTakingTurn ? (
+                          <span style={{ color: "var(--turn)" }}>{teammate.kind === "agent" ? "AI 思考中..." : "出牌中..."}</span>
+                        ) : teammate.kind === "agent" ? (
+                          "AI 待命"
+                        ) : (
+                          "等待中..."
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           ) : (
             <p className="placing__opponent-status">-</p>

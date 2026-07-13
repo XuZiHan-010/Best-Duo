@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+const seatIdSchema = z.union([z.literal("A"), z.literal("B"), z.literal("C"), z.literal("D")]);
+
 const avatarDataUrlSchema = z
   .string()
   .max(300_000)
@@ -20,10 +22,13 @@ export const settingsUpdateSchema = z
   .object({
     discussionMinutes: z.union([z.literal(5), z.literal(10), z.literal(15), z.literal(20)]).optional(),
     thinkSeconds: z.union([z.literal(5), z.literal(10), z.literal(15), z.literal(20), z.literal(30)]).optional(),
-    hintMarkerCount: z.union([z.literal(2), z.literal(3), z.literal(4)]).optional(),
-    capacity: z.literal(2).optional()
+    hintMarkerCount: z.union([z.literal(2), z.literal(3), z.literal(4)]).optional()
   })
   .strict();
+
+export const hostRemoveAgentSchema = z.object({
+  seatId: seatIdSchema
+});
 
 export const hostSelectLevelSchema = z.object({
   levelIndex: z.number().int().positive()

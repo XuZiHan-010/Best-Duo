@@ -4,8 +4,9 @@ import type { AddressInfo } from "node:net";
 import { io as createClient, type Socket as ClientSocket } from "socket.io-client";
 import { Server } from "socket.io";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ClientEvents, ServerEvents, type ProgressState, type PublicRoomState } from "@take-time/shared";
+import { ClientEvents, ServerEvents, type ProgressState, type PublicRoomState, type SeatId } from "@take-time/shared";
 import { config, defaultSettings } from "../src/config.js";
+import { InMemoryAgentRegistry } from "../src/agent/registry.js";
 import { createGameRoom } from "../src/game/room.js";
 import { canSolveDeal, type SolverCard } from "../src/game/solver.js";
 import { clearAllTimers } from "../src/game/timers.js";
@@ -56,6 +57,7 @@ describe("socket flow", () => {
   let clients: ClientSocket[];
   let room: ReturnType<typeof createGameRoom>;
   let saveImpl: (nextProgress: ProgressState) => Promise<void>;
+  let agentRegistry: InMemoryAgentRegistry;
 
   const levels = loadLevels();
   const savedProgress: ProgressState[] = [];
@@ -93,6 +95,65 @@ describe("socket flow", () => {
     await waitForEvent(bob, ServerEvents.RoomState);
 
     return { alice, bob };
+  };
+
+  const joinPlayers = async (nicks: string[]) => {
+    const sockets: ClientSocket[] = [];
+    for (const nick of nicks) {
+      const socket = await connectClient();
+      socket.emit(ClientEvents.PlayerJoin, joinPayload(nick));
+      await waitForEvent(socket, ServerEvents.RoomState);
+      sockets.push(socket);
+    }
+    return sockets;
+  };
+
+  const readyAndEnterLevelWithPlayers = async (sockets: ClientSocket[]) => {
+    for (const socket of sockets) {
+      socket.emit(ClientEvents.PlayerReady);
+      await waitForEvent(socket, ServerEvents.RoomState);
+    }
+    const host = sockets[0];
+    host.emit(ClientEvents.GameStart);
+    await waitForEvent(host, ServerEvents.RoomState);
+    host.emit(ClientEvents.HostSelectLevel, { levelIndex: 1 });
+    await waitForEvent(host, ServerEvents.RoomState);
+    host.emit(ClientEvents.GameBeginPlacement);
+    await waitForEvent(host, ServerEvents.RoomState);
+  };
+
+  const placeCurrentDealSuccessfullyWithPlayers = async (sockets: ClientSocket[]) => {
+    if (!room.currentChallenge) throw new Error("No current challenge");
+    const seatIds = room.seats.filter((seat) => seat.nick).map((seat) => seat.id);
+    const socketBySeat = new Map<SeatId, ClientSocket>(seatIds.map((seatId, index) => [seatId, sockets[index]]));
+    const cards = seatIds.flatMap((seatId) =>
+      (room.hands[seatId] ?? []).map<SolverCard>((card) => ({
+        id: card.id,
+        owner: card.owner,
+        value: card.value,
+        color: card.color
+      }))
+    );
+    const solution = canSolveDeal(room.currentChallenge, cards, seatIds);
+    expect(solution.solvable).toBe(true);
+    expect(solution.assignments).toHaveLength(cards.length);
+
+    const segmentByCardId = new Map(cards.map((card, index) => [card.id, solution.assignments![index]]));
+    while (room.phase === "placing") {
+      const seatId = room.turn === "race" ? seatIds[0] : room.turn;
+      if (!seatId) throw new Error(`Unexpected turn ${room.turn}`);
+      const socket = socketBySeat.get(seatId);
+      if (!socket) throw new Error(`No socket for ${seatId}`);
+      const card = room.hands[seatId]?.find((candidate) => segmentByCardId.has(candidate.id));
+      if (!card) throw new Error(`No solvable card for ${seatId}`);
+      const segment = segmentByCardId.get(card.id);
+      if (segment === undefined) throw new Error(`No segment for ${card.id}`);
+
+      socket.emit(ClientEvents.CardPlace, { cardId: card.id, segment });
+      await waitForEvent(socket, ServerEvents.RoomState);
+      socket.emit(ClientEvents.HintDecide, { decision: "no" });
+      await waitForEvent(socket, ServerEvents.RoomState);
+    }
   };
 
   const readyAndEnterLevel = async (alice: ClientSocket, bob: ClientSocket) => {
@@ -142,6 +203,7 @@ describe("socket flow", () => {
   beforeEach(async () => {
     room = createGameRoom(structuredClone(progress), levels);
     savedProgress.length = 0;
+    agentRegistry = new InMemoryAgentRegistry();
     saveImpl = async (nextProgress) => {
       savedProgress.push(structuredClone(nextProgress));
     };
@@ -149,7 +211,7 @@ describe("socket flow", () => {
     httpServer = http.createServer();
     io = new Server(httpServer);
     io.on("connection", (socket) => {
-      registerHandlers({ io, socket, room, levels, progressStore });
+      registerHandlers({ io, socket, room, levels, progressStore, agentRegistry });
     });
     httpServer.listen(0);
     await once(httpServer, "listening");
@@ -260,6 +322,71 @@ describe("socket flow", () => {
     expect(bob.connected).toBe(true);
   });
 
+  it("allows up to four players in waiting and rejects the fifth", async () => {
+    const sockets = [] as ClientSocket[];
+    for (const nick of ["Alice", "Bob", "Carol", "Dave"]) {
+      const socket = await connectClient();
+      sockets.push(socket);
+      socket.emit(ClientEvents.PlayerJoin, joinPayload(nick));
+      await waitForEvent(socket, ServerEvents.RoomState);
+    }
+
+    expect(room.seats.map((seat) => seat.nick)).toEqual(["Alice", "Bob", "Carol", "Dave"]);
+    expect(room.seats.every((seat) => seat.connected)).toBe(true);
+
+    const erin = await connectClient();
+    erin.emit(ClientEvents.PlayerJoin, joinPayload("Erin"));
+    const error = await waitForEvent<{ code: string; message: string }>(erin, ServerEvents.RoomError);
+
+    expect(error.code).toBe("bad-request");
+    expect(error.message).toBe("房间已满");
+    expect(room.seats.some((seat) => seat.nick === "Erin")).toBe(false);
+    expect(sockets).toHaveLength(4);
+  });
+  it("lets the host add and remove an agent in waiting", async () => {
+    const alice = await connectClient();
+    alice.emit(ClientEvents.PlayerJoin, joinPayload("Alice"));
+    await waitForEvent(alice, ServerEvents.RoomState);
+    alice.emit(ClientEvents.PlayerReady);
+    await waitForEvent(alice, ServerEvents.RoomState);
+
+    alice.emit(ClientEvents.HostAddAgent);
+    await waitForEvent(alice, ServerEvents.RoomState);
+
+    const agentSeat = room.seats.find((seat) => seat.kind === "agent");
+    expect(agentSeat).toBeDefined();
+    expect(agentSeat?.nick).toBe("AI-1");
+    expect(agentSeat?.connected).toBe(true);
+    expect(agentSeat?.agentId).toBeDefined();
+    expect(agentRegistry.size).toBe(1);
+    expect(room.ready[agentSeat!.id]).toBe(true);
+
+    alice.emit(ClientEvents.HostRemoveAgent, { seatId: agentSeat!.id });
+    await waitForEvent(alice, ServerEvents.RoomState);
+
+    expect(agentRegistry.size).toBe(0);
+    expect(room.seats.find((seat) => seat.id === agentSeat!.id)).toMatchObject({
+      kind: "human",
+      nick: null,
+      connected: false
+    });
+  });
+
+  it("allows one ready human plus one agent to start", async () => {
+    const alice = await connectClient();
+    alice.emit(ClientEvents.PlayerJoin, joinPayload("Alice"));
+    await waitForEvent(alice, ServerEvents.RoomState);
+    alice.emit(ClientEvents.PlayerReady);
+    await waitForEvent(alice, ServerEvents.RoomState);
+    alice.emit(ClientEvents.HostAddAgent);
+    await waitForEvent(alice, ServerEvents.RoomState);
+
+    alice.emit(ClientEvents.GameStart);
+    await waitForEvent(alice, ServerEvents.RoomState);
+
+    expect(room.phase).toBe("levelSelect");
+    expect(room.seats.filter((seat) => seat.nick)).toHaveLength(2);
+  });
   it("rejects oversized avatars in join payloads", async () => {
     const alice = await connectClient();
     const oversizedAvatar = `data:image/png;base64,${"A".repeat(300_000)}`;
@@ -617,17 +744,26 @@ describe("socket flow", () => {
     expect(savedProgress.some((entry) => entry.clearedLevels.includes(1))).toBe(false);
   });
 
-  it("rejects duplicate online nicknames", async () => {
+  it("a duplicate online nickname with the right password takes the seat over", async () => {
+    // Same nick + correct password = the same player coming back (e.g. after
+    // a network blip that left the old socket half-open). The server severs
+    // the stale connection and reattaches the seat instead of locking the
+    // nick until the old socket's ping timeout expires.
     const { alice } = await joinTwoPlayers();
+    const aliceSeatId = room.seats.find((seat) => seat.nick === "Alice")!.id;
     const duplicate = await connectClient();
 
     duplicate.emit(ClientEvents.PlayerJoin, joinPayload("Alice"));
-    const error = await waitForEvent<{ code: string; message: string }>(duplicate, ServerEvents.RoomError);
+    await waitForCondition(
+      () => room.seats.find((seat) => seat.nick === "Alice")?.socketId === duplicate.id,
+    );
 
-    expect(error.code).toBe("bad-request");
+    const seat = room.seats.find((seat) => seat.nick === "Alice")!;
+    expect(seat.id).toBe(aliceSeatId); // same seat, new socket
+    expect(seat.connected).toBe(true);
     expect(room.seats.filter((seat) => seat.nick === "Alice")).toHaveLength(1);
     expect(room.seats.filter((seat) => seat.nick !== null)).toHaveLength(2);
-    expect(alice.connected).toBe(true);
+    await waitForCondition(() => !alice.connected); // stale socket was severed
   });
 
   it("rejects new players during an active game while still allowing held-seat reconnects", async () => {
@@ -756,6 +892,107 @@ describe("socket flow", () => {
     alice.emit(ClientEvents.GameContinueToResult);
     await waitForEvent(alice, ServerEvents.RoomState);
     expect(room.phase).toBe("result");
+  });
+
+  for (const playerCount of [3, 4] as const) {
+    it(`plays a full successful level with ${playerCount} human players`, async () => {
+      const sockets = await joinPlayers(["Alice", "Bob", "Carol", "Dave"].slice(0, playerCount));
+      await readyAndEnterLevelWithPlayers(sockets);
+
+      expect(room.hands.A).toHaveLength(12 / playerCount);
+      expect(room.hands.B).toHaveLength(12 / playerCount);
+      expect(room.hands.C).toHaveLength(12 / playerCount);
+      if (playerCount === 4) expect(room.hands.D).toHaveLength(3);
+
+      await placeCurrentDealSuccessfullyWithPlayers(sockets);
+
+      expect(room.phase).toBe("reveal");
+      expect(room.revealResult?.pass).toBe(true);
+      expect(room.placements.flat()).toHaveLength(12);
+      expect(new Set(room.placements.flat().map((card) => card.owner))).toEqual(
+        new Set(room.seats.filter((seat) => seat.nick).map((seat) => seat.id))
+      );
+    });
+  }
+
+  for (const agentCount of [1, 3] as const) {
+    it(`completes a socket game with one human and ${agentCount} scripted agent(s)`, async () => {
+      const alice = await connectClient();
+      alice.emit(ClientEvents.PlayerJoin, joinPayload("Alice"));
+      await waitForEvent(alice, ServerEvents.RoomState);
+      alice.emit(ClientEvents.PlayerReady);
+      await waitForEvent(alice, ServerEvents.RoomState);
+
+      for (let index = 0; index < agentCount; index += 1) {
+        alice.emit(ClientEvents.HostAddAgent);
+        await waitForEvent(alice, ServerEvents.RoomState);
+      }
+
+      alice.emit(ClientEvents.GameStart);
+      await waitForEvent(alice, ServerEvents.RoomState);
+      alice.emit(ClientEvents.HostSelectLevel, { levelIndex: 1 });
+      await waitForEvent(alice, ServerEvents.RoomState);
+      alice.emit(ClientEvents.GameBeginPlacement);
+      await waitForEvent(alice, ServerEvents.RoomState);
+
+      const playerCount = agentCount + 1;
+      const humanHandSize = 12 / playerCount;
+      for (let index = 0; index < humanHandSize; index += 1) {
+        expect(room.turn === "race" || room.turn === "A").toBe(true);
+        const card = room.hands.A?.[0];
+        if (!card) throw new Error("Human has no card to place");
+        alice.emit(ClientEvents.CardPlace, { cardId: card.id, segment: index % 6 });
+        await waitForEvent(alice, ServerEvents.RoomState);
+        alice.emit(ClientEvents.HintDecide, { decision: "no" });
+        await waitForEvent(alice, ServerEvents.RoomState);
+        expect(room.placements.flat()).toHaveLength((index + 1) * playerCount);
+      }
+
+      expect(room.phase).toBe("reveal");
+      expect(room.placements.flat()).toHaveLength(12);
+      expect(room.seats.filter((seat) => seat.kind === "agent")).toHaveLength(agentCount);
+      expect(agentRegistry.size).toBe(agentCount);
+
+      alice.emit(ClientEvents.GameContinueToResult);
+      await waitForEvent(alice, ServerEvents.RoomState);
+      expect(room.phase).toBe("result");
+    });
+  }
+
+  it("completes a socket game with two humans and one scripted agent", async () => {
+    const [alice, bob] = await joinPlayers(["Alice", "Bob"]);
+    alice.emit(ClientEvents.PlayerReady);
+    await waitForEvent(alice, ServerEvents.RoomState);
+    bob.emit(ClientEvents.PlayerReady);
+    await waitForEvent(bob, ServerEvents.RoomState);
+    alice.emit(ClientEvents.HostAddAgent);
+    await waitForEvent(alice, ServerEvents.RoomState);
+    alice.emit(ClientEvents.GameStart);
+    await waitForEvent(alice, ServerEvents.RoomState);
+    alice.emit(ClientEvents.HostSelectLevel, { levelIndex: 1 });
+    await waitForEvent(alice, ServerEvents.RoomState);
+    alice.emit(ClientEvents.GameBeginPlacement);
+    await waitForEvent(alice, ServerEvents.RoomState);
+
+    const humanSockets: Partial<Record<SeatId, ClientSocket>> = { A: alice, B: bob };
+    let humanPlacements = 0;
+    while (room.phase === "placing") {
+      const seatId = room.turn === "race" ? "A" : room.turn;
+      if (seatId !== "A" && seatId !== "B") throw new Error(`Unexpected human turn ${seatId}`);
+      const socket = humanSockets[seatId];
+      const card = room.hands[seatId]?.[0];
+      if (!socket || !card) throw new Error(`Missing socket or card for ${seatId}`);
+      socket.emit(ClientEvents.CardPlace, { cardId: card.id, segment: humanPlacements % 6 });
+      await waitForEvent(socket, ServerEvents.RoomState);
+      socket.emit(ClientEvents.HintDecide, { decision: "no" });
+      await waitForEvent(socket, ServerEvents.RoomState);
+      humanPlacements += 1;
+    }
+
+    expect(humanPlacements).toBe(8);
+    expect(room.phase).toBe("reveal");
+    expect(room.placements.flat().filter((card) => card.owner === "C")).toHaveLength(4);
+    expect(room.placements.flat()).toHaveLength(12);
   });
 
   it("rejects game:continueToResult from a non-host and keeps the room in reveal", async () => {

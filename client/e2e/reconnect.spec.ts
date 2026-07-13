@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures.js";
 import { join, ready, resetRoom } from "./helpers.js";
 
 test.beforeEach(resetRoom);
@@ -27,8 +27,8 @@ test("dropping a connection shows the recovering state, then rebuilds room:state
   // badge — that's not proof the reconnected socket is actually re-attached
   // to seat A server-side. Toggle ready again: PlayerReady requires a live
   // seatId on the socket, so this only succeeds on a real re-attachment.
-  await pageA.getByRole("button", { name: "已准备 ✓" }).click();
+  await pageA.getByRole("button", { name: "已准备", exact: true }).click();
   await expect(pageA.getByRole("button", { name: "准备", exact: true })).toBeVisible();
   await expect(pageA.locator(".toast--error")).toHaveCount(0);
-  await expect(pageB.getByText("等待准备…")).toBeVisible();
+  await expect(pageB.getByText("等待准备...")).toBeVisible();
 });

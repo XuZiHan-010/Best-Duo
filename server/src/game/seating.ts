@@ -35,13 +35,15 @@ export const findEmptySeat = (room: GameRoom) => room.seats.find((seat) => !seat
 
 export const transferHostToConnectedSeat = (room: GameRoom, leavingSeatId: SeatId) => {
   if (room.host !== leavingSeatId) return;
-  room.host = room.seats.find((seat) => seat.id !== leavingSeatId && seat.connected)?.id ?? null;
+  room.host = room.seats.find((seat) => seat.id !== leavingSeatId && seat.kind === "human" && seat.connected)?.id ?? null;
 };
 
 export const releaseSeat = (room: GameRoom, seat: Seat) => {
   transferHostToConnectedSeat(room, seat.id);
   seat.nick = null;
   seat.avatar = null;
+  seat.kind = "human";
+  seat.agentId = undefined;
   seat.connected = false;
   seat.socketId = undefined;
   room.ready[seat.id] = false;

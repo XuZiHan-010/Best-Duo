@@ -1,9 +1,9 @@
-import type { Challenge, GameRoom, LevelSummary, ProgressState, Seat, SeatId } from "@take-time/shared";
+import type { Challenge, GameRoom, LevelSummary, PlayerCount, ProgressState, Seat, SeatId } from "@take-time/shared";
 import { defaultSettings } from "../config.js";
 
 const seatIds: SeatId[] = ["A", "B", "C", "D"];
 
-export const createSeats = (capacity: 2 | 3 | 4): Seat[] =>
+export const createSeats = (capacity: PlayerCount): Seat[] =>
   seatIds.slice(0, capacity).map((id) => ({
     id,
     kind: "human",
@@ -29,7 +29,7 @@ export const createGameRoom = (progress: ProgressState, levelsOrTotal: Challenge
   const settings = {
     ...defaultSettings,
     ...progress.settings,
-    capacity: 2 as const
+    capacity: 4 as const
   };
   const levelSummaries = Array.isArray(levelsOrTotal) ? createLevelSummaries(levelsOrTotal) : [];
 
@@ -95,8 +95,17 @@ export const softResetRoom = (room: GameRoom) => {
   resetRoundState(room);
 };
 
-export const activeSeatIds = (room: GameRoom) =>
-  room.seats.filter((seat) => seat.nick).map((seat) => seat.id);
+export const occupiedSeats = (room: GameRoom) => room.seats.filter((seat) => Boolean(seat.nick));
+
+export const humanSeats = (room: GameRoom) => occupiedSeats(room).filter((seat) => seat.kind === "human");
+
+export const occupiedPlayerCount = (room: GameRoom): PlayerCount => {
+  const count = occupiedSeats(room).length;
+  if (count === 2 || count === 3 || count === 4) return count;
+  throw new Error("需要 2-4 名玩家才能开始");
+};
+
+export const activeSeatIds = (room: GameRoom) => occupiedSeats(room).map((seat) => seat.id);
 
 export const allSeatsOccupied = (room: GameRoom) => room.seats.every((seat) => Boolean(seat.nick));
 
@@ -105,8 +114,18 @@ export const findSeat = (room: GameRoom, seatId: SeatId | undefined | null) =>
 
 export const isHost = (room: GameRoom, seatId: SeatId | undefined | null) => Boolean(seatId && room.host === seatId);
 
-export const allReady = (room: GameRoom) =>
-  allSeatsOccupied(room) && room.seats.every((seat) => room.ready[seat.id]);
+export const allReady = (room: GameRoom) => {
+  const humans = humanSeats(room);
+  return humans.length > 0 && humans.every((seat) => room.ready[seat.id]);
+};
+
+export const canStartGame = (room: GameRoom) => {
+  if (room.phase !== "waiting") return false;
+  const occupied = occupiedSeats(room);
+  if (occupied.length < 2 || occupied.length > 4) return false;
+  if (!allReady(room)) return false;
+  return occupied.every((seat) => seat.kind === "agent" || seat.connected);
+};
 
 export const totalPlacedCards = (room: GameRoom) =>
   room.placements.reduce((total, segment) => total + segment.length, 0);
