@@ -11,6 +11,10 @@ npm-debug.log*
 .tmp/
 .tmp-e2e-data/
 .superpowers/
+# scratch logs & agent tooling (not part of the app)
+*.log
+.agents/
+.codex-runlogs/
 client/test-results/
 client/playwright-report/
 client/blob-report/
