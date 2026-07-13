@@ -9,12 +9,15 @@ import {
   type SeatId
 } from "@take-time/shared";
 import { config } from "../config.js";
+import { createScriptedAgent } from "../agent/scriptedAgent.js";
+import type { InMemoryAgentRegistry } from "../agent/registry.js";
 import { applyHintDecision, applyPlacement } from "../game/actions.js";
 import { continueTurnOrHandoff } from "../game/handoff.js";
 import { beginPlacement, enterDiscussion, enterLevelSelect } from "../game/phases.js";
 import {
-  allReady,
-  allSeatsOccupied,
+  canStartGame,
+  humanSeats,
+  occupiedSeats,
   findSeat,
   isHost,
   resetRoundState,
@@ -41,6 +44,7 @@ import {
   chatSendSchema,
   hintDecideSchema,
   hostSelectLevelSchema,
+  hostRemoveAgentSchema,
   playerJoinSchema,
   settingsUpdateSchema
 } from "../validation/schemas.js";
@@ -51,6 +55,7 @@ interface HandlerContext {
   room: GameRoom;
   levels: Challenge[];
   progressStore: ProgressStore;
+  agentRegistry: InMemoryAgentRegistry;
 }
 
 const saveProgress = async (store: ProgressStore, progress: ProgressState) => {
@@ -101,8 +106,9 @@ const clearSocketBindingForSeat = (io: Server, socketId: string | undefined, not
   connectedSocket.data.nick = undefined;
 };
 
-const endGameAndResetRoom = (io: Server, room: GameRoom) => {
+const endGameAndResetRoom = (io: Server, room: GameRoom, registry: InMemoryAgentRegistry) => {
   clearAllTimers(room);
+  registry.clear();
   softResetRoom(room);
   clearSocketSeatBindings(io);
   io.emit(ServerEvents.GameEnded);
@@ -125,13 +131,17 @@ const returnToWaitingAndReleaseSeat = (io: Server, room: GameRoom, seatId: SeatI
   emitStateToAll(io, room);
 };
 
-const allConnectedPlayersReady = (room: GameRoom) =>
-  room.phase === "waiting" &&
-  room.seats.every((seat) => Boolean(seat.nick && seat.connected && room.ready[seat.id]));
+const allConnectedPlayersReady = (room: GameRoom) => {
+  if (room.phase !== "waiting") return false;
+  const occupied = occupiedSeats(room);
+  if (occupied.length < 2 || occupied.length > 4) return false;
+  if (humanSeats(room).length === 0) return false;
+  return occupied.every((seat) => seat.kind === "agent" || Boolean(seat.connected && room.ready[seat.id]));
+};
 
 const pickRandomReadyHost = (room: GameRoom, excludedSeatId: SeatId) => {
   const candidates = room.seats.filter(
-    (seat) => seat.id !== excludedSeatId && seat.nick && seat.connected && room.ready[seat.id]
+    (seat) => seat.id !== excludedSeatId && seat.kind === "human" && seat.nick && seat.connected && room.ready[seat.id]
   );
   if (candidates.length === 0) return null;
   return candidates[Math.floor(Math.random() * candidates.length)]?.id ?? null;
@@ -186,7 +196,8 @@ const beginPlacementWithTimers = (ctx: HandlerContext) => {
 const continueTurnOrAgentHandoff = (ctx: HandlerContext) =>
   continueTurnOrHandoff(ctx.room, {
     afterRevealIfNeeded: () => afterRevealIfNeeded(ctx),
-    startTurnTimer: () => startTurnTimer(ctx.room, () => handleTimerFailure(ctx.io, ctx.room))
+    startTurnTimer: () => startTurnTimer(ctx.room, () => handleTimerFailure(ctx.io, ctx.room)),
+    agentRegistry: ctx.agentRegistry
   });
 
 const LEVEL_SELECT_MS = 15_000;
@@ -269,7 +280,7 @@ const assertRoomPassword = (password: string) => {
 };
 
 export const registerHandlers = (ctx: HandlerContext) => {
-  const { io, socket, room, levels, progressStore } = ctx;
+  const { io, socket, room, levels, progressStore, agentRegistry } = ctx;
 
   const autoReconnectFromQuery = () => {
     const rawNick = socket.handshake.query.nick;
@@ -301,8 +312,21 @@ export const registerHandlers = (ctx: HandlerContext) => {
     run(socket, () => {
       const { nick, avatar, password } = playerJoinSchema.parse(payload);
       assertRoomPassword(password);
+      // Same nick + correct password = the same player coming back. The old
+      // socket may be a half-dead connection (network blip, killed browser)
+      // that won't time out for pingInterval+pingTimeout — don't lock the
+      // nick until then; sever the stale socket and let the reconnect path
+      // below take the seat over.
       const connectedSameNick = room.seats.find((seat) => seat.nick === nick && seat.connected);
-      if (connectedSameNick) throw new Error("该昵称已在房间中");
+      if (connectedSameNick) {
+        const stale = connectedSameNick.socketId
+          ? io.sockets.sockets.get(connectedSameNick.socketId)
+          : undefined;
+        connectedSameNick.connected = false;
+        connectedSameNick.socketId = undefined;
+        connectedSameNick.holdUntil = undefined;
+        stale?.disconnect(true);
+      }
 
       const reconnectSeat = findReconnectSeat(room, nick);
       if (!reconnectSeat && room.phase !== "waiting") throw new Error("对局进行中，不能加入新座位");
@@ -345,12 +369,58 @@ export const registerHandlers = (ctx: HandlerContext) => {
     })
   );
 
+  socket.on(ClientEvents.HostAddAgent, () =>
+    run(socket, () => {
+      if (!isHost(room, requireSeatId(socket))) throw new Error("只有房主可以添加 AI");
+      if (room.phase !== "waiting") throw new Error("只有等待阶段可以添加 AI");
+      if (room.seats.filter((seat) => seat.kind === "agent" && seat.nick).length >= 3) throw new Error("最多只能添加 3 个 AI");
+
+      const seat = findEmptySeat(room);
+      if (!seat) throw new Error("房间已满");
+
+      const existingNumbers = new Set(
+        room.seats
+          .filter((candidate) => candidate.kind === "agent" && candidate.nick?.startsWith("AI-"))
+          .map((candidate) => Number(candidate.nick?.slice(3)))
+          .filter(Number.isInteger)
+      );
+      let nextNumber = 1;
+      while (existingNumbers.has(nextNumber)) nextNumber += 1;
+
+      const agentId = randomUUID();
+      seat.kind = "agent";
+      seat.nick = `AI-${nextNumber}`;
+      seat.agentId = agentId;
+      seat.connected = true;
+      seat.socketId = undefined;
+      seat.holdUntil = undefined;
+      room.ready[seat.id] = true;
+      agentRegistry.register(agentId, createScriptedAgent());
+      refreshHostStartTimer(io, room);
+      emitStateToAll(io, room);
+    })
+  );
+
+  socket.on(ClientEvents.HostRemoveAgent, (payload) =>
+    run(socket, () => {
+      if (!isHost(room, requireSeatId(socket))) throw new Error("只有房主可以移除 AI");
+      if (room.phase !== "waiting") throw new Error("只有等待阶段可以移除 AI");
+      const { seatId } = hostRemoveAgentSchema.parse(payload);
+      const seat = findSeat(room, seatId);
+      if (!seat || seat.kind !== "agent" || !seat.agentId) throw new Error("该座位不是 AI");
+
+      agentRegistry.unregister(seat.agentId);
+      releaseSeat(room, seat);
+      refreshHostStartTimer(io, room);
+      emitStateToAll(io, room);
+    })
+  );
   socket.on(ClientEvents.SettingsUpdate, (payload) =>
     run(socket, async () => {
       if (!isHost(room, requireSeatId(socket))) throw new Error("只有房主可以修改设置");
       if (room.phase !== "waiting") throw new Error("只有等待阶段可以修改设置");
       const patch = settingsUpdateSchema.parse(payload);
-      const nextSettings = { ...room.settings, ...patch, capacity: 2 as const };
+      const nextSettings = { ...room.settings, ...patch, capacity: 4 as const };
       const nextProgress = { ...room.progress, settings: nextSettings };
       await saveProgress(progressStore, nextProgress);
       room.settings = nextSettings;
@@ -364,7 +434,7 @@ export const registerHandlers = (ctx: HandlerContext) => {
   socket.on(ClientEvents.GameStart, () =>
     run(socket, () => {
       if (!isHost(room, requireSeatId(socket))) throw new Error("只有房主可以开始游戏");
-      if (!allSeatsOccupied(room) || !allReady(room)) throw new Error("需要所有玩家就座并准备");
+      if (!canStartGame(room)) throw new Error("至少需要 2 名玩家且所有真人已准备");
       clearHostStartTimer(room);
       enterLevelSelect(room);
       startLevelSelectWithTimer(ctx);
@@ -378,7 +448,7 @@ export const registerHandlers = (ctx: HandlerContext) => {
       const { levelIndex } = hostSelectLevelSchema.parse(payload);
       const level = levels.find((candidate) => candidate.levelIndex === levelIndex);
       if (!level) throw new Error("关卡不存在");
-      // 顺序解锁：第 1 关始终开放；其余关卡需上一关已通关才可选。
+      // 顺序解锁：第 1 关始终开放，其余关卡需上一关已通关才可选。
       if (!isLevelUnlocked(room.progress, levelIndex)) throw new Error("该关卡尚未解锁");
       clearLevelSelectTimer(room);
       startDiscussionWithTimer(ctx, level);
@@ -522,7 +592,7 @@ export const registerHandlers = (ctx: HandlerContext) => {
     run(socket, () => {
       requireSeatId(socket);
       if (!gameFlowPhases.has(room.phase)) throw new Error("当前阶段无法结束游戏");
-      endGameAndResetRoom(io, room);
+      endGameAndResetRoom(io, room, agentRegistry);
     })
   );
 
@@ -546,8 +616,17 @@ export const registerHandlers = (ctx: HandlerContext) => {
     run(socket, () => {
       if ((process.env.NODE_ENV ?? config.nodeEnv) === "production") throw new Error("生产环境不允许重置房间");
       clearAllTimers(room);
+      agentRegistry.clear();
       softResetRoom(room);
       emitStateToAll(io, room);
+      // Sever every other connection too. A test browser torn down without a
+      // WebSocket close frame leaves its socket half-open server-side for up
+      // to pingInterval+pingTimeout; that ghost keeps its seat nick flagged
+      // `connected` and rejects the next joiner with 该昵称已在房间中. Reset
+      // means a clean slate, so lingering connections go as well.
+      for (const other of io.sockets.sockets.values()) {
+        if (other.id !== socket.id) other.disconnect(true);
+      }
     })
   );
 
@@ -560,7 +639,7 @@ export const registerHandlers = (ctx: HandlerContext) => {
     if (room.phase === "waiting") refreshHostStartTimer(io, room);
     setTimeout(() => {
       // The room may have been reset (room:reset, or all-disconnected
-      // softResetRoom) while this timeout was pending — room.seats is then
+      // softResetRoom) while this timeout was pending —room.seats is then
       // a fresh generation of Seat objects and this `seat` is an orphaned
       // reference from the old one. Touching the current room with it would
       // act on the wrong seat (e.g. stealing host from whoever just took
@@ -572,7 +651,7 @@ export const registerHandlers = (ctx: HandlerContext) => {
         return;
       }
       if (gameFlowPhases.has(room.phase)) {
-        endGameAndResetRoom(io, room);
+        endGameAndResetRoom(io, room, agentRegistry);
         return;
       }
       transferHostToConnectedSeat(room, seat.id);
@@ -583,6 +662,7 @@ export const registerHandlers = (ctx: HandlerContext) => {
       }
       if (!room.seats.some((candidate) => candidate.nick)) {
         clearAllTimers(room);
+        agentRegistry.clear();
         softResetRoom(room);
       }
       refreshHostStartTimer(io, room);

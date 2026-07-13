@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures.js";
 import { joinAndReady, resetRoom } from "./helpers.js";
 
 test.beforeEach(resetRoom);

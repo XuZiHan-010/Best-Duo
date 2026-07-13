@@ -1,10 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
-import type { ProgressState, Seat } from "@take-time/shared";
+import type { PlayerCount, ProgressState, SeatId } from "@take-time/shared";
 import { defaultSettings } from "../src/config.js";
+import { InMemoryAgentRegistry } from "../src/agent/registry.js";
+import { createScriptedAgent } from "../src/agent/scriptedAgent.js";
 import { applyHintDecision, applyPlacement } from "../src/game/actions.js";
 import { continueTurnOrHandoff } from "../src/game/handoff.js";
 import { beginPlacement, enterDiscussion } from "../src/game/phases.js";
-import { createGameRoom } from "../src/game/room.js";
+import { canStartGame, createGameRoom } from "../src/game/room.js";
 import { privateHandForSeat, publicRoomState } from "../src/game/visibility.js";
 import { loadLevels } from "../src/levels/loadLevels.js";
 
@@ -14,16 +16,18 @@ const progress: ProgressState = {
   settings: defaultSettings
 };
 
-const occupiedSeat = (id: "A" | "B", nick: string): Seat => ({
-  id,
-  kind: "human",
-  nick,
-  connected: true
-});
+const seatIds: SeatId[] = ["A", "B", "C", "D"];
 
-const makePlacingRoom = () => {
+const occupySeat = (room: ReturnType<typeof createGameRoom>, seatId: SeatId, nick = seatId) => {
+  const seat = room.seats.find((candidate) => candidate.id === seatId);
+  if (!seat) throw new Error(`Missing seat ${seatId}`);
+  seat.nick = nick;
+  seat.connected = true;
+};
+
+const makePlacingRoom = (playerCount: PlayerCount = 2) => {
   const room = createGameRoom(progress, 4);
-  room.seats = [occupiedSeat("A", "Alice"), occupiedSeat("B", "Bob")];
+  for (const seatId of seatIds.slice(0, playerCount)) occupySeat(room, seatId);
   room.phase = "levelSelect";
   enterDiscussion(room, loadLevels()[0]);
   beginPlacement(room);
@@ -31,13 +35,51 @@ const makePlacingRoom = () => {
 };
 
 describe("actions and visibility", () => {
-  it("deals two-player hands with owner-only blind card visibility", () => {
+  it("starts with four seats but can start once two connected humans are ready", () => {
+    const room = createGameRoom(progress, 4);
+
+    expect(room.capacity).toBe(4);
+    expect(room.seats).toHaveLength(4);
+    expect(canStartGame(room)).toBe(false);
+
+    occupySeat(room, "A", "Alice");
+    room.ready.A = true;
+    expect(canStartGame(room)).toBe(false);
+
+    occupySeat(room, "B", "Bob");
+    expect(canStartGame(room)).toBe(false);
+
+    room.ready.B = true;
+    expect(canStartGame(room)).toBe(true);
+  });
+
+  it("deals two-player hands by occupied count even in a four-seat room", () => {
     const room = makePlacingRoom();
     const hand = privateHandForSeat(room, "A");
 
-    expect(hand).toHaveLength(6);
+    expect(room.seats).toHaveLength(4);
+    expect(room.hands.A).toHaveLength(6);
+    expect(room.hands.B).toHaveLength(6);
+    expect(room.hands.C).toBeUndefined();
+    expect(room.hands.D).toBeUndefined();
     expect(hand.map((card) => card.value !== undefined)).toEqual([false, true, true, true, true, false]);
     expect(hand.map((card) => card.color !== undefined)).toEqual([false, true, true, true, true, false]);
+  });
+
+  it("deals three- and four-player hands with full owner visibility", () => {
+    for (const playerCount of [3, 4] as const) {
+      const room = makePlacingRoom(playerCount);
+      const expectedHandSize = playerCount === 3 ? 4 : 3;
+
+      for (const seatId of seatIds.slice(0, playerCount)) {
+        expect(room.hands[seatId]).toHaveLength(expectedHandSize);
+        expect(privateHandForSeat(room, seatId).every((card) => card.value !== undefined && card.color !== undefined)).toBe(true);
+      }
+
+      for (const seatId of seatIds.slice(playerCount)) {
+        expect(room.hands[seatId]).toBeUndefined();
+      }
+    }
   });
 
   it("shows placed card color but hides value until a hint marker reveals it", () => {
@@ -55,7 +97,7 @@ describe("actions and visibility", () => {
     expect(room.turn).toBe("B");
   });
 
-  it("reveals remaining blind cards only after both players have played two cards", () => {
+  it("reveals remaining blind cards only after both two-player seats have played two cards", () => {
     const room = makePlacingRoom();
 
     applyPlacement(room, "A", { cardId: room.hands.A![0].id, segment: 0 });
@@ -84,6 +126,26 @@ describe("actions and visibility", () => {
     expect(room.turn).toBe("B");
   });
 
+  it("hands off an agent turn through the action layer and falls back to a human turn timer", async () => {
+    const room = makePlacingRoom(3);
+    const agentSeat = room.seats.find((seat) => seat.id === "C");
+    if (!agentSeat) throw new Error("Missing agent seat");
+    agentSeat.kind = "agent";
+    agentSeat.agentId = "agent-c";
+    room.turn = "C";
+
+    const agentRegistry = new InMemoryAgentRegistry();
+    agentRegistry.register("agent-c", createScriptedAgent());
+    const afterRevealIfNeeded = vi.fn().mockResolvedValue(undefined);
+    const startTurnTimer = vi.fn();
+
+    await continueTurnOrHandoff(room, { afterRevealIfNeeded, startTurnTimer, agentRegistry });
+
+    expect(room.placements.flat().some((card) => card.owner === "C")).toBe(true);
+    expect(room.pendingHint).toBeNull();
+    expect(room.turn).toBe("A");
+    expect(startTurnTimer).toHaveBeenCalledTimes(1);
+  });
   it("does not randomly hand off a disconnected player's turn", async () => {
     const room = makePlacingRoom();
     room.seats[1].connected = false;

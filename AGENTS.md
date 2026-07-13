@@ -4,7 +4,7 @@
 
 ## 这个项目在做什么
 
-**Take Time 单房间双人 Web 原型**：一个受 Libellud 合作桌游《Take Time》启发的、私用的在线合作时钟谜题游戏。
+**Take Time 单房间 2–4 人 Web 原型**：一个受 Libellud 合作桌游《Take Time》启发的、私用的在线合作时钟谜题游戏。
 
 - 两名玩家（A / B）登录后进入唯一全局房间，各自准备；**第一个准备者为房主**，负责设置、选关、开始。
 - 大厅流程：登录进房 → 准备（房主）→ 房主选关（已通关关卡标记显示）→ 进入该关 → 通关后按顺序推进。
@@ -22,8 +22,10 @@
 
 ## 当前开发进度
 
-- 后端：MVP M0–M7 基本完成，已处理 `backend-review-followups.md` 中的后端 review follow-ups；当前处于可开始 M8（3/4 人 `capacity` 放开与测试）的节点，M8 尚未正式实现。
-- 前端：核心联调界面已推进到可对接后端主流程的阶段，但 `frontend-code-review-2026-06-16.md` 中记录的 UI/交互/a11y 收口问题仍待修复；前端不是 M8 阶段，下一步应优先处理这些 review fixes。
+- M0–M7 主流程基本完成；M8 的 2–4 人弹性开局、固定 4 座位、按实际人数发牌和多人 UI 已基本落地，当前缺口主要是多人 E2E、全量回归与 Railway 真机验收。
+- M9 的房主加/撤 Agent、`InMemoryAgentRegistry`、脚本 Agent、出牌/hint handoff 和前端 Agent UI 已有框架；真实 LLM、讨论调度、团队策略、attempt memory、候选评估和可观测性尚未实现。
+- Agent 现行架构以 [docs/architecture.md](docs/architecture.md) 与 [plans/m9-agent-implementation-plan.md](plans/m9-agent-implementation-plan.md) 为准；旧 Claude/Anthropic 实施表述均已废弃。
+- 当前工作区存在 M8/M9 与移动端相关的未提交改动；修改时必须保留并避开无关用户改动。
 
 ## 文件目录
 
@@ -32,10 +34,13 @@
 | [rules.md](rules.md) | **游戏规则总结**——游戏机制的权威口径，改机制先看这里。 |
 | [docs/](docs/) | **产品 PRD / 规格文档**：产品总纲、路线图与后续规格说明。 |
 | [docs/product-roadmap-prd.md](docs/product-roadmap-prd.md) | 产品总纲与 V1–V4 路线图：双人 MVP、3/4 人扩展、AI agent、AI 接管与全 agent 对局。 |
-| [plans/](plans/) | **所有执行计划 / 设计方案**都放这里。 |
-| [plans/take-time-web-prototype.md](plans/take-time-web-prototype.md) | 当前设计方案：状态机、数据模型、Socket 事件、服务端校验、测试计划。 |
-| [plans/frontend-ui-plan.md](plans/frontend-ui-plan.md) | 前端开发计划 & UI 规划：美术方向、界面地图、组件架构、可访问性合规、里程碑。 |
-| [plans/backend-dev-plan.md](plans/backend-dev-plan.md) | 后端开发计划：仓库结构、核心模块、Socket 实现矩阵、测试/部署、里程碑。 |
+| [docs/architecture.md](docs/architecture.md) | **当前技术架构权威口径**：2–4 人、Agent、memory、Provider、持久化和部署边界。 |
+| [docs/take-time-web-prototype.md](docs/take-time-web-prototype.md) | 历史双人 V1 设计基线；不再代表当前多人/Agent 架构。 |
+| [docs/frontend-ui-plan.md](docs/frontend-ui-plan.md) | 前端开发计划 & UI 规划：美术方向、界面地图、组件架构、可访问性合规、里程碑。 |
+| [docs/backend-dev-plan.md](docs/backend-dev-plan.md) | 后端模块详细设计；现行架构冲突时以 `docs/architecture.md` 为准。 |
+| [docs/adr/](docs/adr/) | 重要架构决策记录：持久化、Agent 编排、隐藏信息候选评估。 |
+| [plans/](plans/) | **尚未完成的执行计划**；完成或被替代的计划应标记状态并归档。 |
+| [plans/m9-agent-implementation-plan.md](plans/m9-agent-implementation-plan.md) | 当前 M9 唯一执行计划。 |
 | [levels/](levels/) | **关卡设计**：一关一个 md 文件，按难度递进。 |
 | [levels/README.md](levels/README.md) | 关卡索引 + 条件类型词汇 + 区段编号约定。 |
 | [AGENTS.md](AGENTS.md) | 本索引文件。 |
@@ -45,6 +50,7 @@
 
 - **产品级 PRD / 规格文档**统一放在 [docs/](docs/) 文件夹。
 - **执行计划 / 设计文档**统一放在 [plans/](plans/) 文件夹。
+- **当前架构**统一维护在 [docs/architecture.md](docs/architecture.md)；重要决策写入 [docs/adr/](docs/adr/)，不要把历史执行计划当成现行架构。
 - **关卡设计**统一放在 [levels/](levels/) 文件夹，一关一个 md，按难度递进；新增关卡同步更新 [levels/README.md](levels/README.md) 的关卡列表。
 - **游戏规则**以 [rules.md](rules.md) 为权威来源；[plans/](plans/) 里的设计需与之保持一致。
 - 服务端是权威状态来源，负责所有关键校验；前端只展示状态和发送意图，不自行判定胜负。
@@ -55,7 +61,7 @@
 
 - 牌库固定 **24 张**：白色 1–12（12 张）+ 黑色 1–12（12 张）。
 - 每局随机抽 **12 张**，2 人各得 6 张；关卡不再各自携带 `deck`，见 `server/src/game/deal.ts`。
-- 卡牌带 `value`（数值）和 `color`（`'white' | 'black'`）两个维度；暗置阶段两者一并遮蔽，揭示时公开。
+- 卡牌带 `value`（数值）和 `color`（`'white' | 'black'`）两个维度；手牌按人数规则遮蔽。桌面暗牌的**颜色公开、数值遮蔽**，提示翻开或最终揭示时公开数值。
 
 ## 待补全项（影响实现，需用户提供）
 

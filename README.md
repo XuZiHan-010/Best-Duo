@@ -4,7 +4,7 @@
 
 一个私用的、非盈利的在线合作时钟谜题游戏原型，灵感来自 Libellud 的合作桌游《Take Time》。
 
-我们是《Take Time》的爱好者，希望能和朋友远程一起体验类似的合作推理乐趣，所以做了这个 Web 版本。当前项目支持一个全局房间、两名玩家、实时同步、关卡选择、暗置出牌、提示标记、揭示校验和已通关进度持久化。
+我们是《Take Time》的爱好者，希望能和朋友远程一起体验类似的合作推理乐趣，所以做了这个 Web 版本。当前项目支持一个全局房间、2–4 个就位座位、真人与 Agent 混合座位框架、实时同步、关卡选择、暗置出牌、提示标记、揭示校验和已通关进度持久化。
 
 ## 版权与使用声明
 
@@ -16,11 +16,11 @@
 
 ## 主要功能
 
-- 单房间双人在线合作对局。
+- 单房间 2–4 人在线合作对局，房间固定 4 个座位并按实际就位人数开局。
 - 玩家输入昵称后入座，准备后由第一个准备者成为房主。
 - 房主选择关卡、开始对局、推进流程。
 - 讨论阶段后进入禁沟通出牌阶段。
-- 每名玩家拥有私有手牌视图，暗置牌的数值和颜色由服务端遮蔽。
+- 每名玩家拥有私有手牌视图；桌面暗置牌的数值由服务端遮蔽，颜色对全体玩家可见。
 - 使用有限提示标记传递信息。
 - 揭示后由服务端校验 6 个时钟区段的永久通用规则和当前关卡特殊条件。
 - 已通关关卡和房间设置持久化到 JSON 文件。
@@ -40,7 +40,8 @@ levels/level-03.md
 
 - `rules.md`：游戏规则和机制口径。
 - `levels/README.md`：关卡格式、条件类型、区段编号约定。
-- `docs/take-time-web-prototype.md`：状态机、Socket 事件和数据模型。
+- `docs/architecture.md`：当前系统架构、状态边界、Agent memory 与模型路由。
+- `docs/take-time-web-prototype.md`：V1 双人状态机、Socket 事件和数据模型的历史基线。
 
 新增关卡后，请同步更新 `levels/README.md` 的关卡列表。若只是调整某一关的数值条件，通常只需要修改对应的 `level-XX.md`；若要新增一种条件类型，则需要同步扩展 shared 类型、服务端条件校验和前端展示文案。
 
@@ -218,7 +219,7 @@ data/     本地进度数据目录
 
 ## 项目状态
 
-当前是 Web 原型阶段，双人 MVP 主流程已经基本可用。后续计划包括更多关卡、3/4 人容量扩展、更完整的前端体验和更多测试覆盖。
+当前是 Web 原型阶段：双人 MVP 主流程可用，固定 4 座与 2–4 人弹性开局已基本落地，真实 LLM Agent 尚在 M9 实施阶段。当前架构与实施顺序分别见 `docs/architecture.md` 和 `plans/m9-agent-implementation-plan.md`。
 
 ---
 
@@ -228,7 +229,7 @@ data/     本地进度数据目录
 
 A private, non-commercial online cooperative clock puzzle prototype inspired by Libellud's cooperative board game *Take Time*.
 
-We are fans of *Take Time* and wanted a way to enjoy a similar cooperative deduction experience remotely with friends, so we built this web version. The current project supports one global room, two players, real-time synchronization, level selection, hidden card placement, hint markers, reveal validation, and persisted cleared-level progress.
+We are fans of *Take Time* and wanted a way to enjoy a similar cooperative deduction experience remotely with friends, so we built this web version. The current project supports one global room, 2–4 occupied seats, a human/agent mixed-seat framework, real-time synchronization, level selection, hidden card placement, hint markers, reveal validation, and persisted cleared-level progress.
 
 ## Copyright And Use Notice
 
@@ -240,11 +241,11 @@ If you are a relevant rights holder and believe that any content in this project
 
 ## Features
 
-- One-room, two-player online cooperative play.
+- One-room cooperative play for 2–4 occupied seats, with four fixed seat slots and an elastic start count.
 - Players enter with nicknames and take seats; the first ready player becomes the host.
 - The host selects levels, starts the game, and advances the flow.
 - After discussion, players enter a no-communication card placement phase.
-- Each player has a private hand view, while hidden placed cards have their value and color masked by the server.
+- Each player has a private hand view. For face-down cards on the table, the server masks values while colors remain visible to everyone.
 - Limited hint markers can be used to communicate information.
 - After reveal, the server validates the permanent global rules and the current level-specific conditions for the 6 clock segments.
 - Cleared levels and room settings are persisted to a JSON file.
@@ -264,7 +265,8 @@ You can design your own levels inside `levels/`. Before doing so, we recommend r
 
 - `rules.md`: the source of truth for game rules and mechanics.
 - `levels/README.md`: level format, condition types, and segment numbering conventions.
-- `docs/take-time-web-prototype.md`: state machine, Socket events, and data model.
+- `docs/architecture.md`: current system architecture, state boundaries, agent memory, and model routing.
+- `docs/take-time-web-prototype.md`: historical V1 two-player baseline for the state machine, Socket events, and data model.
 
 After adding a new level, update the level list in `levels/README.md`. If you only change numeric conditions for an existing level, you usually only need to edit the corresponding `level-XX.md`. If you add a new condition type, you will also need to update the shared types, server-side condition validation, and client display text.
 
@@ -442,4 +444,4 @@ data/     Local progress data directory
 
 ## Project Status
 
-This project is currently a web prototype. The main two-player MVP flow is mostly usable. Future work includes more levels, 3/4-player capacity support, a more complete frontend experience, and broader test coverage.
+This project is currently a web prototype. The two-player MVP flow is usable, and fixed four-seat / elastic 2–4-player support is mostly implemented. Real LLM agents remain part of the M9 implementation phase; see `docs/architecture.md` and `plans/m9-agent-implementation-plan.md`.

@@ -2,6 +2,7 @@ import type { CardColor, Challenge, LevelSummary, RevealResult } from "./level.j
 
 export type SeatId = "A" | "B" | "C" | "D";
 export type SeatKind = "human" | "agent";
+export type PlayerCount = 2 | 3 | 4;
 export type Phase = "waiting" | "levelSelect" | "discussion" | "placing" | "reveal" | "result";
 export type FailureReason = "rule-unmet" | "timeout" | "player-left" | null;
 export type TimerHandle = ReturnType<typeof setTimeout>;
@@ -21,7 +22,7 @@ export interface RoomSettings {
   discussionMinutes: 5 | 10 | 15 | 20;
   thinkSeconds: 5 | 10 | 15 | 20 | 30;
   hintMarkerCount: 2 | 3 | 4;
-  capacity: 2 | 3 | 4;
+  capacity: PlayerCount;
 }
 
 export interface ProgressState {
@@ -104,7 +105,7 @@ export interface TimerHandles {
 
 export interface GameRoom {
   stateVersion: number;
-  capacity: 2 | 3 | 4;
+  capacity: PlayerCount;
   seats: Seat[];
   ready: Partial<Record<SeatId, boolean>>;
   host: SeatId | null;
@@ -131,7 +132,7 @@ export interface GameRoom {
 
 export interface PublicRoomState {
   stateVersion: number;
-  capacity: 2 | 3 | 4;
+  capacity: PlayerCount;
   seats: Omit<Seat, "socketId">[];
   ready: Partial<Record<SeatId, boolean>>;
   host: SeatId | null;
@@ -150,3 +151,14 @@ export interface PublicRoomState {
   revealResult: RevealResult | null;
   failureReason: FailureReason;
 }
+
+export const handSizeForPlayerCount = (playerCount: PlayerCount): number => {
+  switch (playerCount) {
+    case 2:
+      return 6;
+    case 3:
+      return 4;
+    case 4:
+      return 3;
+  }
+};

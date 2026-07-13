@@ -21,7 +21,7 @@ describe("progressStore", () => {
     expect(store.load()).toEqual({
       schemaVersion: 1,
       clearedLevels: [1, 3],
-      settings: { ...defaultSettings, hintMarkerCount: 4, capacity: 2 }
+      settings: { ...defaultSettings, hintMarkerCount: 4, capacity: 4 }
     });
   });
 

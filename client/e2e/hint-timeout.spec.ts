@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures.js";
 import { resetRoom, setupTwoPlayersInPlacing } from "./helpers.js";
 
 test.beforeEach(resetRoom);
@@ -22,5 +22,5 @@ test("hint prompt ignores Esc and auto-resolves to 'no' on timeout, handing the 
 
   // Timing out defaults to "no" — the card stays masked on the board.
   await expect(pageA.locator('[data-segment="0"] .placed-card--blind')).toBeVisible();
-  await expect(pageB.getByText("◉ 轮到你出牌")).toBeVisible();
+  await expect(pageB.getByText("轮到你出牌")).toBeVisible();
 });

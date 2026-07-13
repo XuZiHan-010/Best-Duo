@@ -3,6 +3,7 @@ import {
   type CardPlacePayload,
   type ChatSendPayload,
   type HintDecidePayload,
+  type HostRemoveAgentPayload,
   type HostSelectLevelPayload,
   type PlayerJoinPayload,
   type SettingsUpdatePayload,
@@ -18,6 +19,12 @@ export const adapter = {
   },
   updateSettings(payload: SettingsUpdatePayload) {
     socket.emit(ClientEvents.SettingsUpdate, payload);
+  },
+  addAgent() {
+    socket.emit(ClientEvents.HostAddAgent);
+  },
+  removeAgent(payload: HostRemoveAgentPayload) {
+    socket.emit(ClientEvents.HostRemoveAgent, payload);
   },
   startGame() {
     socket.emit(ClientEvents.GameStart);

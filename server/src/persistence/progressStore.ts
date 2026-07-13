@@ -27,7 +27,7 @@ const normalizeSettings = (value: unknown): RoomSettings => {
     hintMarkerCount: allowedHintMarkerCounts.has(settings.hintMarkerCount as RoomSettings["hintMarkerCount"])
       ? (settings.hintMarkerCount as RoomSettings["hintMarkerCount"])
       : defaultSettings.hintMarkerCount,
-    capacity: 2
+    capacity: 4
   };
 };
 

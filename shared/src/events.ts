@@ -1,10 +1,12 @@
-import type { RoomSettings } from "./state.js";
+import type { RoomSettings, SeatId } from "./state.js";
 
 export const ClientEvents = {
   PlayerJoin: "player:join",
   PlayerLeave: "player:leave",
   PlayerReady: "player:ready",
   SettingsUpdate: "settings:update",
+  HostAddAgent: "host:addAgent",
+  HostRemoveAgent: "host:removeAgent",
   GameStart: "game:start",
   HostSelectLevel: "host:selectLevel",
   GameBeginPlacement: "game:beginPlacement",
@@ -39,6 +41,10 @@ export interface PlayerJoinPayload {
 }
 
 export interface SettingsUpdatePayload extends Partial<RoomSettings> {}
+
+export interface HostRemoveAgentPayload {
+  seatId: SeatId;
+}
 
 export interface HostSelectLevelPayload {
   levelIndex: number;

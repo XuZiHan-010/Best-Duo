@@ -8,6 +8,7 @@ import { createGameRoom } from "./game/room.js";
 import { loadLevels } from "./levels/loadLevels.js";
 import { createProgressStore } from "./persistence/progressStore.js";
 import { registerHandlers } from "./socket/registerHandlers.js";
+import { InMemoryAgentRegistry } from "./agent/registry.js";
 import { clearAllTimers } from "./game/timers.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -15,6 +16,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const progressStore = createProgressStore(config.dataDir);
 const levels = loadLevels();
 const room = createGameRoom(progressStore.load(), levels);
+const agentRegistry = new InMemoryAgentRegistry();
 
 const app = express();
 const server = http.createServer(app);
@@ -40,7 +42,7 @@ app.get("*", (_req, res) => {
 });
 
 io.on("connection", (socket) => {
-  registerHandlers({ io, socket, room, levels, progressStore });
+  registerHandlers({ io, socket, room, levels, progressStore, agentRegistry });
 });
 
 server.listen(config.port, config.host, () => {
