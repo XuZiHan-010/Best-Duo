@@ -30,6 +30,7 @@ import {
 import { enterResultAfterReveal, failByPlayerLeft, failByTimeout, revealAndScore } from "../game/reveal.js";
 import { attachSeat, findEmptySeat, releaseSeat, transferHostToConnectedSeat } from "../game/seating.js";
 import { PlayerSessionStore } from "../auth/playerSessions.js";
+import { FailureRateLimiter, isAdminConfigured, verifyAdminCredentials } from "../auth/adminAuth.js";
 import {
   clearAllTimers,
   clearHostStartTimer,
@@ -44,6 +45,8 @@ import {
 import type { ProgressStore } from "../persistence/progressStore.js";
 import { emitRoomError, emitStateToAll, emitStateToSocket } from "./emit.js";
 import {
+  adminLoginSchema,
+  adminSeizeRoomSchema,
   cardPlaceSchema,
   chatSendSchema,
   hintDecideSchema,
@@ -87,6 +90,17 @@ const sessionsFor = (room: GameRoom): PlayerSessionStore => {
     sessionStores.set(room, store);
   }
   return store;
+};
+
+// 管理员登录失败限流（随房间实例生命周期）。
+const adminLimiters = new WeakMap<GameRoom, FailureRateLimiter>();
+const adminLimiterFor = (room: GameRoom): FailureRateLimiter => {
+  let limiter = adminLimiters.get(room);
+  if (!limiter) {
+    limiter = new FailureRateLimiter();
+    adminLimiters.set(room, limiter);
+  }
+  return limiter;
 };
 
 const requireSeatId = (socket: Socket): SeatId => {
@@ -750,6 +764,120 @@ export const registerHandlers = (ctx: HandlerContext) => {
       }
     })
   );
+
+  const emitEnterConfirm = () => {
+    socket.emit(ServerEvents.AdminEnterConfirmRequired, {
+      phase: room.phase,
+      humanSeatCount: room.seats.filter((seat) => seat.kind === "human" && seat.nick).length,
+      inGame: room.phase !== "waiting",
+      stateVersion: room.stateVersion
+    });
+  };
+
+  // 原子接管：清运行态 → 通知并请出所有在座者 → 撤销全部会话 →
+  // softResetRoom 重建 → 管理员入座为房主 → 最后才断开被踢 socket
+  // （此时其 disconnect 处理器查不到持有座位，自然 no-op）。
+  const seizeRoomByAdmin = () => {
+    const beforePhase = room.phase;
+    const beforeVersion = room.stateVersion;
+    ctx.agentRuntime?.cancelDiscussion();
+    ctx.agentRuntime?.resetSession();
+    clearAllTimers(room);
+    agentRegistry.clear();
+
+    const kickedSockets = room.seats
+      .map((seat) =>
+        seat.socketId && seat.socketId !== socket.id ? io.sockets.sockets.get(seat.socketId) : undefined
+      )
+      .filter((candidate): candidate is Socket => Boolean(candidate));
+    for (const kicked of kickedSockets) {
+      kicked.emit(ServerEvents.GameAdminSeized, {});
+      kicked.emit(ServerEvents.PlayerKicked, { reason: "ADMIN_SEIZED_ROOM" });
+    }
+
+    sessions.revokeAll();
+    clearSocketSeatBindings(io);
+    softResetRoom(room);
+
+    const seat = room.seats[0];
+    attachSeat(room, seat, socket.id, (socket.data.adminNick as string | undefined) ?? "管理员", socket.data.adminAvatar as string | undefined);
+    room.host = seat.id;
+    socket.data.seatId = seat.id;
+    socket.data.nick = seat.nick;
+    const cred = sessions.issue(seat.id, { isAdmin: true });
+    socket.emit(ServerEvents.PlayerSession, { ...cred, seatId: seat.id });
+
+    for (const kicked of kickedSockets) {
+      kicked.disconnect(true);
+    }
+    emitStateToAll(io, room);
+    console.log(
+      JSON.stringify({
+        event: "admin:seize_room",
+        beforePhase,
+        beforeStateVersion: beforeVersion,
+        stateVersion: room.stateVersion,
+        kicked: kickedSockets.length
+      })
+    );
+  };
+
+  socket.on(ClientEvents.AdminLogin, (payload) =>
+    run(socket, () => {
+      const parsed = adminLoginSchema.parse(payload);
+      if (!isAdminConfigured()) throw new RoomError("ADMIN_DISABLED", "管理员登录未启用");
+      const limiter = adminLimiterFor(room);
+      if (limiter.blocked()) throw new RoomError("ADMIN_RATE_LIMITED", "尝试过于频繁，请稍后再试");
+      if (!verifyAdminCredentials(parsed.username, parsed.password)) {
+        limiter.fail();
+        throw new RoomError("ADMIN_UNAUTHORIZED", "管理员账号或密码错误");
+      }
+      limiter.reset();
+      socket.data.role = "admin";
+      socket.data.adminNick = parsed.nick?.trim() || "管理员";
+      socket.data.adminAvatar = parsed.avatar ?? undefined;
+      socket.emit(ServerEvents.AdminSession, { authenticated: true });
+
+      // 分支 1：管理员的玩家会话仍有效且座位仍被占用（断线保留期）→ 直接恢复
+      const adminPlayerId = sessions.findAdminPlayerId();
+      if (adminPlayerId) {
+        const seatId = sessions.seatOf(adminPlayerId);
+        const seat = seatId ? findSeat(room, seatId) : undefined;
+        if (seat?.nick) {
+          takeOverSeat(seat, adminPlayerId);
+          return;
+        }
+      }
+      // 分支 2：房间有真人 → 要求确认，零副作用
+      if (room.seats.some((seat) => seat.kind === "human" && seat.nick)) {
+        emitEnterConfirm();
+        return;
+      }
+      // 分支 3：无真人在座 → 直接接管（等价于入座）
+      seizeRoomByAdmin();
+    })
+  );
+
+  socket.on(ClientEvents.AdminSeizeRoom, (payload) =>
+    run(socket, () => {
+      const parsed = adminSeizeRoomSchema.parse(payload);
+      if (socket.data.role !== "admin") throw new RoomError("ADMIN_UNAUTHORIZED", "请先登录管理员账号");
+      if (parsed.confirmedStateVersion !== room.stateVersion) {
+        emitEnterConfirm();
+        throw new RoomError("STALE_ADMIN_ACTION", "房间状态已变化，请确认最新状态后重试");
+      }
+      seizeRoomByAdmin();
+    })
+  );
+
+  socket.on(ClientEvents.AdminLogout, () => {
+    // 仅撤销未入座的管理员登录态；已入座管理员走普通 player:leave。
+    if (socket.data.role === "admin" && !socket.data.seatId) {
+      socket.data.role = undefined;
+      socket.data.adminNick = undefined;
+      socket.data.adminAvatar = undefined;
+    }
+  });
 
   socket.on("disconnect", () => {
     const seat = findSeat(room, socket.data.seatId as SeatId | undefined);

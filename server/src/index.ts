@@ -9,7 +9,9 @@ import { loadLevels } from "./levels/loadLevels.js";
 import { createProgressStore } from "./persistence/progressStore.js";
 import { registerHandlers } from "./socket/registerHandlers.js";
 import { InMemoryAgentRegistry } from "./agent/registry.js";
+import { AgentRuntime } from "./agent/runtime.js";
 import { clearAllTimers } from "./game/timers.js";
+import { isAdminConfigured } from "./auth/adminAuth.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -17,6 +19,7 @@ const progressStore = createProgressStore(config.dataDir);
 const levels = loadLevels();
 const room = createGameRoom(progressStore.load(), levels);
 const agentRegistry = new InMemoryAgentRegistry();
+const agentRuntime = new AgentRuntime();
 
 const app = express();
 const server = http.createServer(app);
@@ -42,11 +45,21 @@ app.get("*", (_req, res) => {
 });
 
 io.on("connection", (socket) => {
-  registerHandlers({ io, socket, room, levels, progressStore, agentRegistry });
+  registerHandlers({ io, socket, room, levels, progressStore, agentRegistry, agentRuntime });
 });
 
 server.listen(config.port, config.host, () => {
   console.log(JSON.stringify({ event: "server:listening", port: config.port, host: config.host }));
+  if (isAdminConfigured()) {
+    console.log(JSON.stringify({ event: "admin:enabled" }));
+  } else if ((process.env.NODE_ENV ?? config.nodeEnv) === "production") {
+    console.warn(
+      JSON.stringify({
+        event: "admin:disabled",
+        message: "未配置 ADMIN_USERNAME/ADMIN_PASSWORD（或与 ROOM_PASSWORD 相同），管理员登录已禁用"
+      })
+    );
+  }
 });
 
 const shutdown = (signal: NodeJS.Signals) => {
