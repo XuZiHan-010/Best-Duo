@@ -1,7 +1,6 @@
 import React from "react";
 import { useRoomStore } from "../store/useRoomStore.js";
 import { adapter } from "../socket/adapter.js";
-import { setReconnectCredentials } from "../socket/client.js";
 import { Button } from "../components/Button.js";
 import { Avatar } from "../components/Avatar.js";
 import {
@@ -51,11 +50,8 @@ export function Login() {
     if (!trimmed || !password || !isConnected) return;
     clearError();
     setMyNick(trimmed);
-    const url = new URL(window.location.href);
-    url.searchParams.set("nick", trimmed);
-    window.history.replaceState(null, "", url.toString());
-    window.sessionStorage.setItem("takeTime.roomPassword", password);
-    setReconnectCredentials(trimmed, password);
+    // 首次加入不带会话；服务端签发 player:session 后由 store 持久化，
+    // 后续刷新/断网走 handshake auth 恢复，昵称与密码不再作为重连凭据。
     adapter.join({ nick: trimmed, avatar, password });
   }
 

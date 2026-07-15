@@ -2,16 +2,15 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import "./styles/global.css";
 import { RoomView } from "./views/RoomView.js";
-import { connect } from "./socket/client.js";
-import { useRoomStore } from "./store/useRoomStore.js";
+import { connect, setSessionAuth } from "./socket/client.js";
+import { loadPlayerSession } from "./lib/session.js";
 
-// 从 URL 恢复 nick（刷新/重连场景）
-const urlNick = new URLSearchParams(window.location.search).get("nick");
-if (urlNick) {
-  useRoomStore.getState().setMyNick(urlNick);
-}
+// 刷新/重开标签页：用 sessionStorage 里的玩家会话经 handshake auth 自动恢复座位。
+// 昵称不再进 URL，也不再作为重连凭据。
+const session = loadPlayerSession();
+if (session) setSessionAuth(session);
 
-connect(urlNick ?? undefined);
+connect();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

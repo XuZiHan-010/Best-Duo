@@ -1,4 +1,5 @@
 import { io, type Socket } from "socket.io-client";
+import type { PlayerSessionPayload } from "@take-time/shared";
 
 export type ConnectionState = "connecting" | "connected" | "reconnecting" | "disconnected";
 
@@ -34,21 +35,15 @@ socket.on("disconnect", () => notify("reconnecting"));
 socket.io.on("reconnect", () => notify("connected"));
 socket.io.on("reconnect_failed", () => notify("disconnected"));
 
-// Stamps credentials onto the Manager's handshake query so that automatic
-// transport-level reconnects can re-attach the held seat.
-export function setReconnectCredentials(nick: string, password: string) {
-  (socket.io as unknown as { opts: { query: Record<string, string> } }).opts.query = { nick, password };
+// 会话凭证写入 handshake auth：transport 级自动重连时随新握手提交，
+// 服务端验证后静默恢复座位。令牌不进 URL query。
+export function setSessionAuth(session: PlayerSessionPayload | null) {
+  socket.auth = session
+    ? { playerId: session.playerId, reconnectToken: session.reconnectToken }
+    : {};
 }
 
-export function clearReconnectCredentials() {
-  (socket.io as unknown as { opts: { query: Record<string, string> } }).opts.query = {};
-}
-
-export function connect(nick?: string) {
-  if (nick) {
-    const password = window.sessionStorage.getItem("takeTime.roomPassword");
-    if (password) setReconnectCredentials(nick, password);
-  }
+export function connect() {
   notify("connecting");
   socket.connect();
 }

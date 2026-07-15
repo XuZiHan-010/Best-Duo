@@ -994,6 +994,29 @@ input, textarea {
    would centre inside the tall container and could sit off-screen. This dialog
    is a timed, blocking decision, so it must stay centred in the viewport at any
    scroll position. */
+/* 被管理员请出的终态全屏提示 */
+.kicked-notice {
+  position: fixed; inset: 0;
+  background: rgba(6,10,18,.9);
+  backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px; z-index: 200;
+}
+.kicked-notice__card {
+  width: 100%; max-width: 420px;
+  background: var(--bg-2); border: 1px solid var(--hairline);
+  border-radius: var(--r-card); padding: 32px 36px;
+  box-shadow: var(--shadow-lift);
+  display: flex; flex-direction: column; gap: 24px;
+  text-align: center;
+}
+.kicked-notice__title {
+  font-family: var(--font-display); font-size: 18px;
+  font-weight: 700; color: var(--ink);
+  line-height: 1.5;
+}
+.kicked-notice__btn { align-self: center; }
+
 .hint-prompt-backdrop {
   position: fixed;
   inset: 0;
