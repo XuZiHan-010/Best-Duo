@@ -336,6 +336,109 @@ describe("admin seize room", () => {
     expect(room.seats.find((seat) => seat.id === "A")!.nick).toBe("管理员A");
   });
 
+  const seizeEmptyRoomAsAdmin = async () => {
+    const admin = await connectClient();
+    const sessionPromise = waitForEvent<PlayerSessionPayload>(admin, ServerEvents.PlayerSession);
+    admin.emit(ClientEvents.AdminLogin, adminLoginPayload());
+    await sessionPromise;
+    expect(room.host).toBe("A");
+    return admin;
+  };
+
+  const joinAs = async (nick: string) => {
+    const socket = await connectClient();
+    const sessionPromise = waitForEvent<PlayerSessionPayload>(socket, ServerEvents.PlayerSession);
+    socket.emit(ClientEvents.PlayerJoin, joinPayload(nick));
+    const session = await sessionPromise;
+    return { socket, session };
+  };
+
+  it("kicks a waiting player: notice, revoked session, released seat, admin stays host", async () => {
+    const admin = await seizeEmptyRoomAsAdmin();
+    const { socket: bob, session: bobSession } = await joinAs("Bob");
+    const bobSeatId = room.seats.find((seat) => seat.nick === "Bob")!.id;
+
+    const kickedPromise = waitForEvent<PlayerKickedPayload>(bob, ServerEvents.PlayerKicked);
+    const resultPromise = waitForEvent<{ action: string; success: boolean }>(admin, ServerEvents.AdminActionResult);
+    admin.emit(ClientEvents.AdminKickPlayer, { seatId: bobSeatId, stateVersion: room.stateVersion });
+
+    expect((await kickedPromise).reason).toBe("KICKED_BY_ADMIN");
+    const result = await resultPromise;
+    expect(result.action).toBe("kickPlayer");
+    expect(result.success).toBe(true);
+    await waitForCondition(() => !bob.connected);
+
+    expect(room.seats.find((seat) => seat.id === bobSeatId)!.nick).toBeNull();
+    expect(room.host).toBe("A");
+    expect(room.seats.find((seat) => seat.id === "A")!.nick).toBe("管理员A");
+
+    // 被请出者旧会话不能恢复
+    const returner = await connectClient();
+    const revokedError = waitForEvent<RoomErrorPayload>(returner, ServerEvents.RoomError);
+    returner.emit(ClientEvents.PlayerJoin, {
+      ...joinPayload("Bob"),
+      session: { playerId: bobSession.playerId, reconnectToken: bobSession.reconnectToken }
+    });
+    expect((await revokedError).code).toBe("INVALID_PLAYER_SESSION");
+  });
+
+  it("kicks an in-game player: room returns to waiting, others keep seats unready, no failure recorded", async () => {
+    const admin = await seizeEmptyRoomAsAdmin();
+    const { socket: bob } = await joinAs("Bob");
+    await enterPlacing(admin, bob);
+    const bobSeatId = room.seats.find((seat) => seat.nick === "Bob")!.id;
+
+    const kickedPromise = waitForEvent<PlayerKickedPayload>(bob, ServerEvents.PlayerKicked);
+    admin.emit(ClientEvents.AdminKickPlayer, { seatId: bobSeatId, stateVersion: room.stateVersion });
+    expect((await kickedPromise).reason).toBe("KICKED_BY_ADMIN");
+    await waitForCondition(() => room.phase === "waiting");
+
+    expect(room.seats.find((seat) => seat.id === bobSeatId)!.nick).toBeNull();
+    expect(room.seats.find((seat) => seat.id === "A")!.nick).toBe("管理员A");
+    expect(room.host).toBe("A");
+    expect(room.ready).toEqual({});
+    expect(room.hands).toEqual({});
+    expect(room.placements.flat()).toHaveLength(0);
+    expect(room.timers).toEqual({});
+    expect(room.failureReason).toBeNull();
+    expect(room.progress.clearedLevels).toEqual([1]);
+  });
+
+  it("rejects invalid kick targets and stale state versions without changing state", async () => {
+    const admin = await seizeEmptyRoomAsAdmin();
+    const { socket: bob } = await joinAs("Bob");
+    const bobSeatId = room.seats.find((seat) => seat.nick === "Bob")!.id;
+
+    // 踢自己
+    const selfError = waitForEvent<RoomErrorPayload>(admin, ServerEvents.RoomError);
+    admin.emit(ClientEvents.AdminKickPlayer, { seatId: "A", stateVersion: room.stateVersion });
+    expect((await selfError).code).toBe("INVALID_TARGET");
+
+    // 空座位
+    const emptyError = waitForEvent<RoomErrorPayload>(admin, ServerEvents.RoomError);
+    admin.emit(ClientEvents.AdminKickPlayer, { seatId: "D", stateVersion: room.stateVersion });
+    expect((await emptyError).code).toBe("INVALID_TARGET");
+
+    // 陈旧 stateVersion
+    const staleError = waitForEvent<RoomErrorPayload>(admin, ServerEvents.RoomError);
+    admin.emit(ClientEvents.AdminKickPlayer, { seatId: bobSeatId, stateVersion: room.stateVersion - 1 });
+    expect((await staleError).code).toBe("STALE_ADMIN_ACTION");
+
+    expect(bob.connected).toBe(true);
+    expect(room.seats.find((seat) => seat.id === bobSeatId)!.nick).toBe("Bob");
+  });
+
+  it("rejects kick from non-admin sockets", async () => {
+    await seizeEmptyRoomAsAdmin();
+    const { socket: bob } = await joinAs("Bob");
+
+    const errorPromise = waitForEvent<RoomErrorPayload>(bob, ServerEvents.RoomError);
+    bob.emit(ClientEvents.AdminKickPlayer, { seatId: "A", stateVersion: room.stateVersion });
+
+    expect((await errorPromise).code).toBe("ADMIN_UNAUTHORIZED");
+    expect(room.seats.find((seat) => seat.id === "A")!.nick).toBe("管理员A");
+  });
+
   it("never leaks the admin username or tokens in public room state", async () => {
     const { alice, bob } = await joinTwoPlayers();
     await enterPlacing(alice, bob);

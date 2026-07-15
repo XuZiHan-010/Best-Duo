@@ -45,6 +45,7 @@ import {
 import type { ProgressStore } from "../persistence/progressStore.js";
 import { emitRoomError, emitStateToAll, emitStateToSocket } from "./emit.js";
 import {
+  adminKickPlayerSchema,
   adminLoginSchema,
   adminSeizeRoomSchema,
   cardPlaceSchema,
@@ -867,6 +868,67 @@ export const registerHandlers = (ctx: HandlerContext) => {
         throw new RoomError("STALE_ADMIN_ACTION", "房间状态已变化，请确认最新状态后重试");
       }
       seizeRoomByAdmin();
+    })
+  );
+
+  socket.on(ClientEvents.AdminKickPlayer, (payload) =>
+    run(socket, () => {
+      const parsed = adminKickPlayerSchema.parse(payload);
+      if (socket.data.role !== "admin") throw new RoomError("ADMIN_UNAUTHORIZED", "请先登录管理员账号");
+      const adminSeatId = socket.data.seatId as SeatId | undefined;
+      if (!adminSeatId) throw new RoomError("ADMIN_UNAUTHORIZED", "管理员尚未入座");
+      if (parsed.stateVersion !== room.stateVersion) {
+        throw new RoomError("STALE_ADMIN_ACTION", "房间状态已变化，请刷新后重试");
+      }
+      const target = findSeat(room, parsed.seatId);
+      if (!target || !target.nick || target.kind !== "human" || target.id === adminSeatId) {
+        throw new RoomError("INVALID_TARGET", "无效的请出目标");
+      }
+
+      const beforePhase = room.phase;
+      const targetSocket = target.socketId ? io.sockets.sockets.get(target.socketId) : undefined;
+
+      // 非等待阶段先按"终止到等待大厅"清理运行态（沿用断线释放的同款语义），
+      // 不写进度、不记失败；其余玩家保留座位但取消准备。
+      const wasInGame = room.phase !== "waiting";
+      if (wasInGame) {
+        ctx.agentRuntime?.cancelDiscussion();
+        clearAllTimers(room);
+        resetRoundState(room);
+        room.phase = "waiting";
+        room.currentLevelIndex = null;
+        room.currentChallenge = null;
+        room.chat = [];
+      }
+
+      targetSocket?.emit(ServerEvents.PlayerKicked, { reason: "KICKED_BY_ADMIN" });
+      sessions.revokeBySeat(target.id);
+      if (targetSocket) {
+        targetSocket.data.seatId = undefined;
+        targetSocket.data.nick = undefined;
+      }
+      releaseSeat(room, target);
+      if (wasInGame) room.ready = {};
+      // 管理员是房主；目标不是房主时 releaseSeat 不会动 host，这里兜底保证不漂移。
+      room.host = adminSeatId;
+      targetSocket?.disconnect(true);
+
+      socket.emit(ServerEvents.AdminActionResult, {
+        action: "kickPlayer",
+        success: true,
+        message: "已请出该玩家"
+      });
+      refreshHostStartTimer(io, room);
+      emitStateToAll(io, room);
+      console.log(
+        JSON.stringify({
+          event: "admin:kick_player",
+          targetSeatId: target.id,
+          beforePhase,
+          phase: room.phase,
+          stateVersion: room.stateVersion
+        })
+      );
     })
   );
 
