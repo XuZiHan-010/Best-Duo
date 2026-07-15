@@ -1,5 +1,8 @@
 import {
   ClientEvents,
+  type AdminKickPlayerPayload,
+  type AdminLoginPayload,
+  type AdminSeizeRoomPayload,
   type CardPlacePayload,
   type ChatSendPayload,
   type HintDecidePayload,
@@ -61,5 +64,14 @@ export const adapter = {
   },
   syncRoom() {
     socket.emit(ClientEvents.RoomSync);
+  },
+  adminLogin(payload: AdminLoginPayload) {
+    socket.emit(ClientEvents.AdminLogin, payload);
+  },
+  adminSeizeRoom(payload: AdminSeizeRoomPayload) {
+    socket.emit(ClientEvents.AdminSeizeRoom, payload);
+  },
+  adminKickPlayer(payload: AdminKickPlayerPayload) {
+    socket.emit(ClientEvents.AdminKickPlayer, payload);
   },
 };

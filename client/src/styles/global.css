@@ -994,6 +994,32 @@ input, textarea {
    would centre inside the tall container and could sit off-screen. This dialog
    is a timed, blocking decision, so it must stay centred in the viewport at any
    scroll position. */
+/* 管理员强制接管确认弹窗 */
+.admin-confirm {
+  position: fixed; inset: 0;
+  background: rgba(6,10,18,.85);
+  backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px; z-index: 200;
+}
+.admin-confirm__card {
+  width: 100%; max-width: 460px;
+  background: var(--bg-2); border: 1px solid var(--hairline);
+  border-radius: var(--r-card); padding: 32px 36px;
+  box-shadow: var(--shadow-lift);
+  display: flex; flex-direction: column; gap: 16px;
+  text-align: center;
+}
+.admin-confirm__title {
+  font-family: var(--font-display); font-size: 17px;
+  font-weight: 700; color: var(--ink);
+  line-height: 1.5;
+}
+.admin-confirm__meta { font-size: 13px; color: var(--ink-mut); }
+.admin-confirm__actions {
+  display: flex; gap: 16px; justify-content: center; margin-top: 8px;
+}
+
 /* 被管理员请出的终态全屏提示 */
 .kicked-notice {
   position: fixed; inset: 0;

@@ -11,6 +11,7 @@ const GRACE_SECONDS = 15;
 export function Lobby() {
   const roomState = useRoomStore((s) => s.roomState);
   const connState = useRoomStore((s) => s.connectionState);
+  const isAdmin = useRoomStore((s) => s.isAdmin);
   const mySeatId = useRoomStore(mySeatIdSelector);
   const amHost = useRoomStore(isHostSelector);
   const canStart = useRoomStore(canStartSelector);
@@ -62,10 +63,12 @@ export function Lobby() {
             disabled={isOffline}
             canAddAgent={canAddAgent && seat.nick === null}
             canRemoveAgent={amHost && !isOffline && seat.kind === "agent" && seat.nick !== null}
+            canKick={isAdmin && !isOffline && seat.kind === "human" && seat.nick !== null && seat.id !== mySeatId}
             onReady={() => adapter.ready()}
             onCancelReady={() => adapter.ready()}
             onAddAgent={() => adapter.addAgent()}
             onRemoveAgent={() => adapter.removeAgent({ seatId: seat.id })}
+            onKick={() => adapter.adminKickPlayer({ seatId: seat.id, stateVersion: roomState.stateVersion })}
           />
         ))}
       </div>
