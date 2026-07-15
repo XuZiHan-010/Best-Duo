@@ -4,7 +4,14 @@ import type { AddressInfo } from "node:net";
 import { io as createClient, type Socket as ClientSocket } from "socket.io-client";
 import { Server } from "socket.io";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ClientEvents, ServerEvents, type ProgressState, type PublicRoomState, type SeatId } from "@take-time/shared";
+import {
+  ClientEvents,
+  ServerEvents,
+  type PlayerSessionPayload,
+  type ProgressState,
+  type PublicRoomState,
+  type SeatId
+} from "@take-time/shared";
 import { config, defaultSettings } from "../src/config.js";
 import { InMemoryAgentRegistry } from "../src/agent/registry.js";
 import { createGameRoom } from "../src/game/room.js";
@@ -71,12 +78,12 @@ describe("socket flow", () => {
     }
   };
 
-  const connectClient = async (query?: Record<string, string>) => {
+  const connectClient = async (auth?: Record<string, string>) => {
     const socket = createClient(url, {
       autoConnect: false,
       forceNew: true,
       reconnection: false,
-      query,
+      auth,
       transports: ["websocket"]
     });
     socket.connect();
@@ -89,12 +96,18 @@ describe("socket flow", () => {
     const alice = await connectClient();
     const bob = await connectClient();
 
+    const aliceSessionPromise = waitForEvent<PlayerSessionPayload>(alice, ServerEvents.PlayerSession);
     alice.emit(ClientEvents.PlayerJoin, joinPayload("Alice"));
     await waitForEvent(alice, ServerEvents.RoomState);
+    const bobSessionPromise = waitForEvent<PlayerSessionPayload>(bob, ServerEvents.PlayerSession);
+    // Bob 入座会向 Alice 广播一份 room:state；返回前把它也消费掉，
+    // 避免后续 waitForEvent(alice, RoomState) 抓到这份陈旧广播。
+    const aliceSawBobPromise = waitForEvent(alice, ServerEvents.RoomState);
     bob.emit(ClientEvents.PlayerJoin, joinPayload("Bob"));
     await waitForEvent(bob, ServerEvents.RoomState);
+    await aliceSawBobPromise;
 
-    return { alice, bob };
+    return { alice, bob, aliceSession: await aliceSessionPromise, bobSession: await bobSessionPromise };
   };
 
   const joinPlayers = async (nicks: string[]) => {
@@ -288,7 +301,7 @@ describe("socket flow", () => {
     alice.emit(ClientEvents.PlayerJoin, { nick: "Alice", password: "wrong" });
     const error = await waitForEvent<{ code: string; message: string }>(alice, ServerEvents.RoomError);
 
-    expect(error.code).toBe("bad-request");
+    expect(error.code).toBe("INVALID_ROOM_PASSWORD");
     expect(error.message).toBe("房间密码错误");
     expect(room.seats.every((seat) => !seat.nick && !seat.avatar)).toBe(true);
   });
@@ -338,7 +351,7 @@ describe("socket flow", () => {
     erin.emit(ClientEvents.PlayerJoin, joinPayload("Erin"));
     const error = await waitForEvent<{ code: string; message: string }>(erin, ServerEvents.RoomError);
 
-    expect(error.code).toBe("bad-request");
+    expect(error.code).toBe("ROOM_FULL");
     expect(error.message).toBe("房间已满");
     expect(room.seats.some((seat) => seat.nick === "Erin")).toBe(false);
     expect(sockets).toHaveLength(4);
@@ -448,7 +461,7 @@ describe("socket flow", () => {
   });
 
   it("keeps the active turn deadline when a player refreshes and reconnects", async () => {
-    const { alice, bob } = await joinTwoPlayers();
+    const { alice, bob, bobSession } = await joinTwoPlayers();
     await readyAndEnterLevel(alice, bob);
 
     const originalDeadline = room.timer?.deadline;
@@ -459,7 +472,10 @@ describe("socket flow", () => {
     await waitForCondition(() => room.seats.find((seat) => seat.id === "B")?.connected === false);
     expect(room.timer?.deadline).toBe(originalDeadline);
 
-    const reconnectedBob = await connectClient({ nick: "Bob", password: config.roomPassword });
+    const reconnectedBob = await connectClient({
+      playerId: bobSession.playerId,
+      reconnectToken: bobSession.reconnectToken
+    });
     await waitForCondition(() => room.seats.find((seat) => seat.id === "B")?.socketId === reconnectedBob.id);
 
     expect(room.timer?.kind).toBe("turn");
@@ -575,8 +591,8 @@ describe("socket flow", () => {
     }
   });
 
-  it("reconnects a held seat from the socket query nick and sends private hand", async () => {
-    const { alice, bob } = await joinTwoPlayers();
+  it("reconnects a held seat from handshake auth and sends private hand", async () => {
+    const { alice, bob, bobSession } = await joinTwoPlayers();
     await readyAndEnterLevel(alice, bob);
     expect(room.hands.B).toHaveLength(6);
 
@@ -587,7 +603,7 @@ describe("socket flow", () => {
       autoConnect: false,
       forceNew: true,
       reconnection: false,
-      query: { nick: "Bob", password: config.roomPassword },
+      auth: { playerId: bobSession.playerId, reconnectToken: bobSession.reconnectToken },
       transports: ["websocket"]
     });
     clients.push(reconnectedBob);
@@ -744,40 +760,40 @@ describe("socket flow", () => {
     expect(savedProgress.some((entry) => entry.clearedLevels.includes(1))).toBe(false);
   });
 
-  it("a duplicate online nickname with the right password takes the seat over", async () => {
-    // Same nick + correct password = the same player coming back (e.g. after
-    // a network blip that left the old socket half-open). The server severs
-    // the stale connection and reattaches the seat instead of locking the
-    // nick until the old socket's ping timeout expires.
+  it("a duplicate online nickname without a session is rejected and cannot take the seat", async () => {
+    // 昵称不再承担身份认证：没有会话凭证的同昵称加入一律拒绝，
+    // 原玩家的连接与座位不受任何影响（详见 identityFlow.test.ts）。
     const { alice } = await joinTwoPlayers();
-    const aliceSeatId = room.seats.find((seat) => seat.nick === "Alice")!.id;
+    const aliceSeat = room.seats.find((seat) => seat.nick === "Alice")!;
+    const originalSocketId = aliceSeat.socketId;
     const duplicate = await connectClient();
 
     duplicate.emit(ClientEvents.PlayerJoin, joinPayload("Alice"));
-    await waitForCondition(
-      () => room.seats.find((seat) => seat.nick === "Alice")?.socketId === duplicate.id,
-    );
+    const error = await waitForEvent<{ code: string; message: string }>(duplicate, ServerEvents.RoomError);
 
-    const seat = room.seats.find((seat) => seat.nick === "Alice")!;
-    expect(seat.id).toBe(aliceSeatId); // same seat, new socket
-    expect(seat.connected).toBe(true);
+    expect(error.code).toBe("NICK_IN_USE");
+    expect(alice.connected).toBe(true);
+    expect(aliceSeat.connected).toBe(true);
+    expect(aliceSeat.socketId).toBe(originalSocketId);
     expect(room.seats.filter((seat) => seat.nick === "Alice")).toHaveLength(1);
-    expect(room.seats.filter((seat) => seat.nick !== null)).toHaveLength(2);
-    await waitForCondition(() => !alice.connected); // stale socket was severed
   });
 
   it("rejects new players during an active game while still allowing held-seat reconnects", async () => {
-    const { alice, bob } = await joinTwoPlayers();
+    const { alice, bob, bobSession } = await joinTwoPlayers();
     await readyAndEnterLevel(alice, bob);
 
     const carol = await connectClient();
     carol.emit(ClientEvents.PlayerJoin, joinPayload("Carol"));
-    await waitForEvent(carol, ServerEvents.RoomError);
+    const error = await waitForEvent<{ code: string; message: string }>(carol, ServerEvents.RoomError);
+    expect(error.code).toBe("ROOM_IN_PROGRESS");
 
     bob.disconnect();
     await waitForCondition(() => room.seats.find((seat) => seat.id === "B")?.connected === false);
 
-    const reconnectedBob = await connectClient({ nick: "Bob", password: config.roomPassword });
+    const reconnectedBob = await connectClient({
+      playerId: bobSession.playerId,
+      reconnectToken: bobSession.reconnectToken
+    });
     await waitForCondition(() => room.seats.find((seat) => seat.id === "B")?.socketId === reconnectedBob.id);
 
     expect(room.seats.find((seat) => seat.id === "B")?.connected).toBe(true);
