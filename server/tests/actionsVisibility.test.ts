@@ -35,6 +35,28 @@ const makePlacingRoom = (playerCount: PlayerCount = 2) => {
 };
 
 describe("actions and visibility", () => {
+  it("public seats only expose whitelisted fields and never leak credentials", () => {
+    const room = makePlacingRoom();
+    room.seats[0].socketId = "socket-secret";
+    room.seats[1].holdUntil = Date.now() + 60_000;
+
+    const allowedKeys = new Set(["id", "kind", "nick", "avatar", "agentId", "connected"]);
+    const publicSeats = publicRoomState(room).seats;
+
+    for (const seat of publicSeats) {
+      for (const key of Object.keys(seat)) {
+        expect(allowedKeys.has(key), `PublicSeat 泄漏了字段 ${key}`).toBe(true);
+      }
+    }
+
+    const serialized = JSON.stringify(publicRoomState(room));
+    expect(serialized).not.toContain("socketId");
+    expect(serialized).not.toContain("holdUntil");
+    expect(serialized).not.toContain("playerId");
+    expect(serialized.toLowerCase()).not.toContain("token");
+    expect(serialized).not.toContain("isAdmin");
+  });
+
   it("starts with four seats but can start once two connected humans are ready", () => {
     const room = createGameRoom(progress, 4);
 
@@ -112,8 +134,44 @@ describe("actions and visibility", () => {
 
     applyPlacement(room, "B", { cardId: room.hands.B![0].id, segment: 3 });
 
+    // 压线的这一手先结算提示窗口，剩余盲牌在 hint 决策完成前保持不可见。
+    expect(room.pendingHint?.seatId).toBe("B");
+    expect(privateHandForSeat(room, "A").some((card) => card.value === undefined || card.color === undefined)).toBe(true);
+    expect(privateHandForSeat(room, "B").some((card) => card.value === undefined || card.color === undefined)).toBe(true);
+
+    applyHintDecision(room, "B", "no");
+
     expect(privateHandForSeat(room, "A").every((card) => card.value !== undefined && card.color !== undefined)).toBe(true);
     expect(privateHandForSeat(room, "B").every((card) => card.value !== undefined && card.color !== undefined)).toBe(true);
+  });
+
+  it("reveals remaining blind cards at placement when no hint window opens", () => {
+    const room = makePlacingRoom();
+
+    applyPlacement(room, "A", { cardId: room.hands.A![0].id, segment: 0 });
+    applyHintDecision(room, "A", "no");
+    applyPlacement(room, "B", { cardId: room.hands.B![0].id, segment: 1 });
+    applyHintDecision(room, "B", "no");
+    applyPlacement(room, "A", { cardId: room.hands.A![0].id, segment: 2 });
+    applyHintDecision(room, "A", "no");
+
+    room.hintMarkers.used = room.hintMarkers.total;
+    applyPlacement(room, "B", { cardId: room.hands.B![0].id, segment: 3 });
+
+    expect(room.pendingHint).toBeNull();
+    expect(privateHandForSeat(room, "A").every((card) => card.value !== undefined && card.color !== undefined)).toBe(true);
+    expect(privateHandForSeat(room, "B").every((card) => card.value !== undefined && card.color !== undefined)).toBe(true);
+  });
+
+  it("hint window deadline follows the room's thinkSeconds setting", () => {
+    const room = makePlacingRoom();
+    room.settings.thinkSeconds = 30;
+
+    const before = Date.now();
+    applyPlacement(room, "A", { cardId: room.hands.A![0].id, segment: 0 });
+
+    expect(room.pendingHint?.deadline).toBeGreaterThanOrEqual(before + 30_000);
+    expect(room.pendingHint?.deadline).toBeLessThanOrEqual(Date.now() + 30_000);
   });
 
   it("continues the turn without a hint prompt when no hint markers remain", () => {

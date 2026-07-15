@@ -18,6 +18,16 @@ export interface Seat {
   holdUntil?: number;
 }
 
+// 公共座位白名单：新增 Seat 字段默认不下发，必须在这里显式加入才会广播。
+export interface PublicSeat {
+  id: SeatId;
+  kind: SeatKind;
+  nick: string | null;
+  avatar?: string | null;
+  agentId?: string;
+  connected: boolean;
+}
+
 export interface RoomSettings {
   discussionMinutes: 5 | 10 | 15 | 20;
   thinkSeconds: 5 | 10 | 15 | 20 | 30;
@@ -82,6 +92,7 @@ export interface PendingHint {
 
 export interface ChatMessage {
   id: string;
+  attemptId: string;
   senderSeatId: SeatId;
   kind: SeatKind;
   nick: string;
@@ -103,8 +114,17 @@ export interface TimerHandles {
   hostStart?: TimerHandle;
 }
 
+export interface RoomIdentity {
+  campaignId: string;
+  playSessionId: string;
+  levelRunId: string | null;
+  levelRunLevelId: string | null;
+  attemptId: string | null;
+}
+
 export interface GameRoom {
   stateVersion: number;
+  identity: RoomIdentity;
   capacity: PlayerCount;
   seats: Seat[];
   ready: Partial<Record<SeatId, boolean>>;
@@ -133,7 +153,7 @@ export interface GameRoom {
 export interface PublicRoomState {
   stateVersion: number;
   capacity: PlayerCount;
-  seats: Omit<Seat, "socketId">[];
+  seats: PublicSeat[];
   ready: Partial<Record<SeatId, boolean>>;
   host: SeatId | null;
   phase: Phase;
