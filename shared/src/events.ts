@@ -49,12 +49,27 @@ export interface PlayerSessionCredentials {
   reconnectToken: string;
 }
 
-export interface PlayerJoinPayload {
+export interface PlayerSessionJoinPayload {
   nick: string;
   avatar?: string | null;
-  password: string;
-  session?: PlayerSessionCredentials;
+  /** 兼容字段：会话分支下服务端忽略 */
+  password?: string;
+  /** 兼容字段：会话分支下服务端忽略 */
+  accountPassword?: string;
+  session: PlayerSessionCredentials;
 }
+
+export interface PlayerAccountJoinPayload {
+  nick: string;
+  avatar?: string | null;
+  /** 房间密码：注册与登录的前置门槛（ADR-0006） */
+  password: string;
+  /** 个人密码：首次即注册，4–64 字符 */
+  accountPassword: string;
+  session?: undefined;
+}
+
+export type PlayerJoinPayload = PlayerSessionJoinPayload | PlayerAccountJoinPayload;
 
 export interface PlayerSessionPayload {
   playerId: string;

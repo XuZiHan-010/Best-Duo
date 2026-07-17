@@ -14,18 +14,31 @@ const nickSchema = z
   .max(24)
   .regex(/^[一-龥a-zA-Z0-9_\-\s]+$/, "昵称只允许中文、英文、数字、下划线、横线和空格");
 
-export const playerJoinSchema = z.object({
+const playerSessionCredentialsSchema = z
+  .object({
+    playerId: z.string().min(1).max(128),
+    reconnectToken: z.string().min(1).max(256)
+  })
+  .strict();
+
+// 会话分支：session 本身即凭证，不要求房间密码与个人密码（现网客户端可能附带，服务端忽略）
+const sessionJoinSchema = z.object({
+  nick: nickSchema,
+  avatar: avatarDataUrlSchema.nullish(),
+  password: z.string().max(128).optional(),
+  accountPassword: z.string().max(64).optional(),
+  session: playerSessionCredentialsSchema
+});
+
+// 账号分支：房间密码是前置门槛，个人密码用于隐式注册或登录（ADR-0006）
+const accountJoinSchema = z.object({
   nick: nickSchema,
   avatar: avatarDataUrlSchema.nullish(),
   password: z.string().min(1).max(128),
-  session: z
-    .object({
-      playerId: z.string().min(1).max(128),
-      reconnectToken: z.string().min(1).max(256)
-    })
-    .strict()
-    .optional()
+  accountPassword: z.string().min(4).max(64)
 });
+
+export const playerJoinSchema = z.union([sessionJoinSchema, accountJoinSchema]);
 
 export const adminLoginSchema = z
   .object({
