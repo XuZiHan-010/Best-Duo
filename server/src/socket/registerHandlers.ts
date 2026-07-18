@@ -31,6 +31,8 @@ import { enterResultAfterReveal, failByPlayerLeft, failByTimeout, revealAndScore
 import { attachSeat, findEmptySeat, releaseSeat, transferHostToConnectedSeat } from "../game/seating.js";
 import { PlayerSessionStore } from "../auth/playerSessions.js";
 import { FailureRateLimiter, isAdminConfigured, verifyAdminCredentials } from "../auth/adminAuth.js";
+import { AccountRateLimiter } from "../auth/accountRateLimit.js";
+import type { AccountStore } from "../auth/accountStore.js";
 import {
   clearAllTimers,
   clearHostStartTimer,
@@ -65,6 +67,8 @@ interface HandlerContext {
   progressStore: ProgressStore;
   agentRegistry: InMemoryAgentRegistry;
   agentRuntime?: AgentRuntime;
+  // 玩家账号仓库（ADR-0006）；未注入时退回"无账号"模式（仅测试基建使用）。
+  accountStore?: AccountStore;
 }
 
 const saveProgress = async (store: ProgressStore, progress: ProgressState) => {
@@ -100,6 +104,17 @@ const adminLimiterFor = (room: GameRoom): FailureRateLimiter => {
   if (!limiter) {
     limiter = new FailureRateLimiter();
     adminLimiters.set(room, limiter);
+  }
+  return limiter;
+};
+
+// 账号密码失败限流（按昵称维度，随房间实例生命周期）。
+const accountLimiters = new WeakMap<GameRoom, AccountRateLimiter>();
+const accountLimiterFor = (room: GameRoom): AccountRateLimiter => {
+  let limiter = accountLimiters.get(room);
+  if (!limiter) {
+    limiter = new AccountRateLimiter();
+    accountLimiters.set(room, limiter);
   }
   return limiter;
 };
@@ -361,12 +376,17 @@ export const registerHandlers = (ctx: HandlerContext) => {
 
   const sessions = sessionsFor(room);
 
-  // 首次入座：附着 + 签发新会话 + 私发凭证。
-  const attachWithSession = (seat: (typeof room.seats)[number], nick: string, avatar?: string | null) => {
+  // 首次入座：附着 + 签发新会话 + 私发凭证。账号体系下传入账号的持久 playerId。
+  const attachWithSession = (
+    seat: (typeof room.seats)[number],
+    nick: string,
+    avatar?: string | null,
+    playerId?: string
+  ) => {
     attachSeat(room, seat, socket.id, nick, avatar);
     socket.data.seatId = seat.id;
     socket.data.nick = seat.nick;
-    const cred = sessions.issue(seat.id);
+    const cred = sessions.issue(seat.id, playerId ? { playerId } : undefined);
     socket.emit(ServerEvents.PlayerSession, { ...cred, seatId: seat.id });
     refreshHostStartTimer(io, room);
     emitStateToAll(io, room);
@@ -421,30 +441,106 @@ export const registerHandlers = (ctx: HandlerContext) => {
   };
 
   socket.on(ClientEvents.PlayerJoin, (payload) =>
-    run(socket, () => {
-      const { nick, avatar, password, session } = playerJoinSchema.parse(payload);
-      assertRoomPassword(password);
+    run(socket, async () => {
+      const parsed = playerJoinSchema.parse(payload);
 
-      // 携带会话凭证 = 重连/接管既有座位；昵称不再承担身份认证。
-      if (session) {
-        const seat = resolveSessionSeat(session.playerId, session.reconnectToken);
+      // 会话分支：session 本身即凭证（当初经房间密码换来），不重复校验房间密码与个人密码。
+      if ("session" in parsed) {
+        const seat = resolveSessionSeat(parsed.session.playerId, parsed.session.reconnectToken);
         if (!seat) throw new RoomError("INVALID_PLAYER_SESSION", "玩家会话无效或已撤销，请重新加入");
-        takeOverSeat(seat, session.playerId, avatar);
+        takeOverSeat(seat, parsed.session.playerId, parsed.avatar);
         return;
       }
 
-      const now = Date.now();
-      const nickTaken = room.seats.some(
-        (seat) => seat.nick === nick && (seat.connected || (seat.holdUntil !== undefined && seat.holdUntil > now))
-      );
-      if (nickTaken) {
-        throw new RoomError("NICK_IN_USE", "该昵称正在使用中，请更换昵称；如果这是你的座位，请从原浏览器重连");
-      }
-      if (room.phase !== "waiting") throw new RoomError("ROOM_IN_PROGRESS", "对局进行中，不能加入新座位");
+      const { nick, avatar } = parsed;
+      // 账号分支：房间密码是注册/登录的前置门槛，失败不触达账号层（ADR-0006）。
+      assertRoomPassword(parsed.password);
 
+      if (!ctx.accountStore) {
+        // 无账号仓库（测试基建）：维持 ADR-0005 语义——无会话的同昵称一律拒绝。
+        const now = Date.now();
+        const nickTaken = room.seats.some(
+          (seat) => seat.nick === nick && (seat.connected || (seat.holdUntil !== undefined && seat.holdUntil > now))
+        );
+        if (nickTaken) {
+          throw new RoomError("NICK_IN_USE", "该昵称正在使用中，请更换昵称；如果这是你的座位，请从原浏览器重连");
+        }
+        if (room.phase !== "waiting") throw new RoomError("ROOM_IN_PROGRESS", "对局进行中，不能加入新座位");
+
+        const seat = findEmptySeat(room);
+        if (!seat) throw new RoomError("ROOM_FULL", "房间已满");
+        attachWithSession(seat, nick, avatar);
+        return;
+      }
+
+      if (accountLimiterFor(room).blocked(nick)) {
+        throw new RoomError("ACCOUNT_RATE_LIMITED", "尝试过于频繁，请稍后再试");
+      }
+
+      // Agent 座位昵称冲突维持 NICK_IN_USE（账号密码不可接管 AI 座位）。
+      if (room.seats.some((seat) => seat.kind === "agent" && seat.nick === nick)) {
+        throw new RoomError("NICK_IN_USE", "该昵称正在使用中，请更换昵称");
+      }
+
+      const findTakeoverSeat = () =>
+        room.seats.find(
+          (seat) =>
+            seat.kind === "human" &&
+            seat.nick === nick &&
+            (seat.connected || (seat.holdUntil !== undefined && seat.holdUntil > Date.now()))
+        );
+
+      // 先判定可入座性再触达账号层：房满/对局中不产生注册副作用（无幽灵账户）。
+      if (!findTakeoverSeat()) {
+        if (room.phase !== "waiting") throw new RoomError("ROOM_IN_PROGRESS", "对局进行中，不能加入新座位");
+        if (!findEmptySeat(room)) throw new RoomError("ROOM_FULL", "房间已满");
+      }
+
+      const verify = await ctx.accountStore.verifyOrRegister({
+        nick,
+        accountPassword: parsed.accountPassword,
+        avatar: avatar ?? null
+      });
+      if (!verify.ok) {
+        if (verify.reason === "store_unavailable") {
+          throw new RoomError("ACCOUNT_STORE_UNAVAILABLE", "账号服务暂不可用，请联系管理员");
+        }
+        accountLimiterFor(room).fail(nick);
+        throw new RoomError("ACCOUNT_PASSWORD_MISMATCH", "该昵称已被注册且密码不正确；若这不是你的昵称，请换一个");
+      }
+      accountLimiterFor(room).reset(nick);
+      const account = verify.account;
+
+      // 异步验密期间房态可能变化，重查目标座位。
+      const takeover = findTakeoverSeat();
+      if (takeover) {
+        // 管理员座位不可被账号密码接管：管理员入座昵称可能未注册，
+        // 否则任何人可用该昵称注册新账号劫持管理员座位。
+        if (sessions.isAdminSeat(takeover.id)) {
+          throw new RoomError("NICK_IN_USE", "该昵称正在使用中，请更换昵称");
+        }
+        // 正确密码=本人（ADR-0006）：先附着并签发新会话，最后断开旧 socket（ADR-0005 顺序）。
+        // 直接换发新会话（而非轮换）：旧令牌立即作废，防止旧端在宽限期内抢回座位。
+        const staleSocketId = takeover.socketId;
+        attachSeat(room, takeover, socket.id, account.nick, account.avatar);
+        socket.data.seatId = takeover.id;
+        socket.data.nick = account.nick;
+        const cred = sessions.issue(takeover.id, { playerId: account.playerId });
+        socket.emit(ServerEvents.PlayerSession, { ...cred, seatId: takeover.id });
+        if (staleSocketId && staleSocketId !== socket.id) {
+          io.sockets.sockets.get(staleSocketId)?.disconnect(true);
+        }
+        resumeTimersAfterReconnect(ctx);
+        refreshHostStartTimer(io, room);
+        emitStateToAll(io, room);
+        return;
+      }
+
+      if (room.phase !== "waiting") throw new RoomError("ROOM_IN_PROGRESS", "对局进行中，不能加入新座位");
       const seat = findEmptySeat(room);
       if (!seat) throw new RoomError("ROOM_FULL", "房间已满");
-      attachWithSession(seat, nick, avatar);
+      // 昵称与头像以账号存档为准（注册后不可改，忽略本次提交的头像）。
+      attachWithSession(seat, account.nick, account.avatar, account.playerId);
     })
   );
 

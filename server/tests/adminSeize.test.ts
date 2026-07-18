@@ -31,7 +31,7 @@ const progress: ProgressState = {
   settings: defaultSettings
 };
 
-const joinPayload = (nick: string) => ({ nick, password: config.roomPassword });
+const joinPayload = (nick: string) => ({ nick, password: config.roomPassword, accountPassword: "test-pass" });
 
 const adminLoginPayload = (overrides: Record<string, unknown> = {}) => ({
   username: ADMIN_USERNAME,

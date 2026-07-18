@@ -20,9 +20,13 @@ const hashEquals = (a: Buffer, b: Buffer) => a.length === b.length && timingSafe
 export class PlayerSessionStore {
   private records = new Map<string, PlayerSessionRecord>();
 
-  issue(seatId: SeatId, options?: { isAdmin?: boolean }): { playerId: string; reconnectToken: string } {
+  issue(
+    seatId: SeatId,
+    options?: { isAdmin?: boolean; playerId?: string }
+  ): { playerId: string; reconnectToken: string } {
     this.revokeBySeat(seatId);
-    const playerId = randomBytes(16).toString("base64url");
+    // 账号体系（ADR-0006）下传入账号的持久 playerId；未传时内部生成（管理员等路径）。
+    const playerId = options?.playerId ?? randomBytes(16).toString("base64url");
     const reconnectToken = randomBytes(32).toString("base64url");
     this.records.set(playerId, {
       playerId,
@@ -81,6 +85,13 @@ export class PlayerSessionStore {
 
   isAdmin(playerId: string): boolean {
     return this.records.get(playerId)?.isAdmin === true;
+  }
+
+  isAdminSeat(seatId: SeatId): boolean {
+    for (const record of this.records.values()) {
+      if (record.seatId === seatId && record.isAdmin) return true;
+    }
+    return false;
   }
 
   findAdminPlayerId(): string | null {

@@ -1,4 +1,7 @@
+import fs from "node:fs";
 import http from "node:http";
+import os from "node:os";
+import path from "node:path";
 import { once } from "node:events";
 import type { AddressInfo } from "node:net";
 import { io as createClient, type Socket as ClientSocket } from "socket.io-client";
@@ -19,6 +22,7 @@ import { canSolveDeal, type SolverCard } from "../src/game/solver.js";
 import { clearAllTimers } from "../src/game/timers.js";
 import { loadLevels } from "../src/levels/loadLevels.js";
 import type { ProgressStore } from "../src/persistence/progressStore.js";
+import { createAccountStore, type AccountStore } from "../src/auth/accountStore.js";
 import { registerHandlers } from "../src/socket/registerHandlers.js";
 
 const progress: ProgressState = {
@@ -27,9 +31,12 @@ const progress: ProgressState = {
   settings: defaultSettings
 };
 
+const TEST_ACCOUNT_PASSWORD = "test-pass";
+
 const joinPayload = (nick: string, extra: Record<string, unknown> = {}) => ({
   nick,
   password: config.roomPassword,
+  accountPassword: TEST_ACCOUNT_PASSWORD,
   ...extra
 });
 
@@ -65,6 +72,8 @@ describe("socket flow", () => {
   let room: ReturnType<typeof createGameRoom>;
   let saveImpl: (nextProgress: ProgressState) => Promise<void>;
   let agentRegistry: InMemoryAgentRegistry;
+  let accountDir: string;
+  let accountStore: AccountStore;
 
   const levels = loadLevels();
   const savedProgress: ProgressState[] = [];
@@ -221,10 +230,13 @@ describe("socket flow", () => {
       savedProgress.push(structuredClone(nextProgress));
     };
 
+    accountDir = fs.mkdtempSync(path.join(os.tmpdir(), "tt-sock-accounts-"));
+    accountStore = createAccountStore(accountDir);
+
     httpServer = http.createServer();
     io = new Server(httpServer);
     io.on("connection", (socket) => {
-      registerHandlers({ io, socket, room, levels, progressStore, agentRegistry });
+      registerHandlers({ io, socket, room, levels, progressStore, agentRegistry, accountStore });
     });
     httpServer.listen(0);
     await once(httpServer, "listening");
@@ -239,6 +251,7 @@ describe("socket flow", () => {
     io.close();
     httpServer.close();
     await waitForCondition(() => !httpServer.listening).catch(() => undefined);
+    fs.rmSync(accountDir, { recursive: true, force: true });
   });
 
   it("rejects invalid card placement without clearing the active turn timer", async () => {
@@ -298,7 +311,7 @@ describe("socket flow", () => {
   it("rejects joins with the wrong room password without occupying a seat", async () => {
     const alice = await connectClient();
 
-    alice.emit(ClientEvents.PlayerJoin, { nick: "Alice", password: "wrong" });
+    alice.emit(ClientEvents.PlayerJoin, { nick: "Alice", password: "wrong", accountPassword: TEST_ACCOUNT_PASSWORD });
     const error = await waitForEvent<{ code: string; message: string }>(alice, ServerEvents.RoomError);
 
     expect(error.code).toBe("INVALID_ROOM_PASSWORD");
@@ -760,18 +773,18 @@ describe("socket flow", () => {
     expect(savedProgress.some((entry) => entry.clearedLevels.includes(1))).toBe(false);
   });
 
-  it("a duplicate online nickname without a session is rejected and cannot take the seat", async () => {
-    // 昵称不再承担身份认证：没有会话凭证的同昵称加入一律拒绝，
-    // 原玩家的连接与座位不受任何影响（详见 identityFlow.test.ts）。
+  it("a duplicate online nickname with a wrong account password is rejected and cannot take the seat", async () => {
+    // ADR-0006：同昵称在线时，只有正确的账号密码才视为本人；
+    // 错误密码一律拒绝，原玩家的连接与座位不受任何影响。
     const { alice } = await joinTwoPlayers();
     const aliceSeat = room.seats.find((seat) => seat.nick === "Alice")!;
     const originalSocketId = aliceSeat.socketId;
     const duplicate = await connectClient();
 
-    duplicate.emit(ClientEvents.PlayerJoin, joinPayload("Alice"));
+    duplicate.emit(ClientEvents.PlayerJoin, joinPayload("Alice", { accountPassword: "wrong-pass" }));
     const error = await waitForEvent<{ code: string; message: string }>(duplicate, ServerEvents.RoomError);
 
-    expect(error.code).toBe("NICK_IN_USE");
+    expect(error.code).toBe("ACCOUNT_PASSWORD_MISMATCH");
     expect(alice.connected).toBe(true);
     expect(aliceSeat.connected).toBe(true);
     expect(aliceSeat.socketId).toBe(originalSocketId);
@@ -1067,5 +1080,109 @@ describe("socket flow", () => {
     } finally {
       mutableConfig.seatHoldMs = originalSeatHoldMs;
     }
+  });
+
+  describe("玩家账号（ADR-0006）", () => {
+    it("首次昵称即注册，重进后 playerId 稳定", async () => {
+      const first = await connectClient();
+      const firstSessionPromise = waitForEvent<PlayerSessionPayload>(first, ServerEvents.PlayerSession);
+      first.emit(ClientEvents.PlayerJoin, joinPayload("小明"));
+      await waitForEvent(first, ServerEvents.RoomState);
+      const firstSession = await firstSessionPromise;
+
+      first.emit(ClientEvents.PlayerLeave);
+      await waitForCondition(() => room.seats.every((seat) => seat.nick !== "小明"));
+      first.disconnect();
+
+      const again = await connectClient();
+      const againSessionPromise = waitForEvent<PlayerSessionPayload>(again, ServerEvents.PlayerSession);
+      again.emit(ClientEvents.PlayerJoin, joinPayload("小明"));
+      await waitForEvent(again, ServerEvents.RoomState);
+      const againSession = await againSessionPromise;
+
+      expect(againSession.playerId).toBe(firstSession.playerId);
+    });
+
+    it("正确账号密码可接管在线座位（先附着后断旧连接）", async () => {
+      const oldConn = await connectClient();
+      oldConn.emit(ClientEvents.PlayerJoin, joinPayload("小明"));
+      await waitForEvent(oldConn, ServerEvents.RoomState);
+      const seat = room.seats.find((candidate) => candidate.nick === "小明")!;
+
+      const newConn = await connectClient();
+      const newSessionPromise = waitForEvent<PlayerSessionPayload>(newConn, ServerEvents.PlayerSession);
+      newConn.emit(ClientEvents.PlayerJoin, joinPayload("小明"));
+      await waitForEvent(newConn, ServerEvents.RoomState);
+      const newSession = await newSessionPromise;
+
+      await waitForCondition(() => !oldConn.connected);
+      expect(newSession.seatId).toBe(seat.id);
+      expect(room.seats.filter((candidate) => candidate.nick === "小明")).toHaveLength(1);
+      expect(seat.connected).toBe(true);
+    });
+
+    it("再次登录忽略新头像，沿用注册头像", async () => {
+      const dataUrl = "data:image/png;base64,aGk=";
+      const first = await connectClient();
+      first.emit(ClientEvents.PlayerJoin, joinPayload("小红", { avatar: dataUrl }));
+      await waitForEvent(first, ServerEvents.RoomState);
+      first.emit(ClientEvents.PlayerLeave);
+      await waitForCondition(() => room.seats.every((seat) => seat.nick !== "小红"));
+      first.disconnect();
+
+      const again = await connectClient();
+      again.emit(ClientEvents.PlayerJoin, joinPayload("小红", { avatar: "data:image/png;base64,Ynll" }));
+      await waitForEvent(again, ServerEvents.RoomState);
+
+      expect(room.seats.find((seat) => seat.nick === "小红")?.avatar).toBe(dataUrl);
+    });
+
+    it("房间密码错误时不触发隐式注册", async () => {
+      const denied = await connectClient();
+      denied.emit(ClientEvents.PlayerJoin, joinPayload("新人", { password: "wrong-room" }));
+      const deniedError = await waitForEvent<{ code: string; message: string }>(denied, ServerEvents.RoomError);
+      expect(deniedError.code).toBe("INVALID_ROOM_PASSWORD");
+
+      // 用正确房间密码 + 不同个人密码重来：若上一步误建了账号，这里会报 ACCOUNT_PASSWORD_MISMATCH
+      const joined = await connectClient();
+      joined.emit(ClientEvents.PlayerJoin, joinPayload("新人", { accountPassword: "another-pass" }));
+      await waitForEvent(joined, ServerEvents.RoomState);
+      expect(room.seats.some((seat) => seat.nick === "新人")).toBe(true);
+    });
+
+    it("同昵称连续 5 次密码失败触发 ACCOUNT_RATE_LIMITED", async () => {
+      const owner = await connectClient();
+      owner.emit(ClientEvents.PlayerJoin, joinPayload("小明"));
+      await waitForEvent(owner, ServerEvents.RoomState);
+
+      for (let i = 0; i < 5; i += 1) {
+        const intruder = await connectClient();
+        intruder.emit(ClientEvents.PlayerJoin, joinPayload("小明", { accountPassword: "bad-pass" }));
+        const error = await waitForEvent<{ code: string; message: string }>(intruder, ServerEvents.RoomError);
+        expect(error.code).toBe("ACCOUNT_PASSWORD_MISMATCH");
+      }
+
+      const sixth = await connectClient();
+      sixth.emit(ClientEvents.PlayerJoin, joinPayload("小明", { accountPassword: "bad-pass" }));
+      const limited = await waitForEvent<{ code: string; message: string }>(sixth, ServerEvents.RoomError);
+      expect(limited.code).toBe("ACCOUNT_RATE_LIMITED");
+    });
+
+    it("账户文件损坏时 fail-closed：新注册报 ACCOUNT_STORE_UNAVAILABLE", async () => {
+      const corruptedDir = fs.mkdtempSync(path.join(os.tmpdir(), "tt-sock-corrupt-"));
+      try {
+        fs.writeFileSync(path.join(corruptedDir, "accounts.json"), "{broken", "utf8");
+        // io.on("connection") 每次连接读取当前 accountStore 变量，替换后新连接走降级仓库
+        accountStore = createAccountStore(corruptedDir);
+
+        const blocked = await connectClient();
+        blocked.emit(ClientEvents.PlayerJoin, joinPayload("小明"));
+        const error = await waitForEvent<{ code: string; message: string }>(blocked, ServerEvents.RoomError);
+        expect(error.code).toBe("ACCOUNT_STORE_UNAVAILABLE");
+        expect(fs.readFileSync(path.join(corruptedDir, "accounts.json"), "utf8")).toBe("{broken");
+      } finally {
+        fs.rmSync(corruptedDir, { recursive: true, force: true });
+      }
+    });
   });
 });

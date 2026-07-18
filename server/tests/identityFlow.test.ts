@@ -28,6 +28,7 @@ const progress: ProgressState = {
 const joinPayload = (nick: string, extra: Record<string, unknown> = {}) => ({
   nick,
   password: config.roomPassword,
+  accountPassword: "test-pass",
   ...extra
 });
 
@@ -212,7 +213,7 @@ describe("player identity flow", () => {
     // 密码错误
     const wrongPassword = await connectClient();
     const passwordError = waitForEvent<RoomErrorPayload>(wrongPassword, ServerEvents.RoomError);
-    wrongPassword.emit(ClientEvents.PlayerJoin, { nick: "Carl", password: "wrong-password" });
+    wrongPassword.emit(ClientEvents.PlayerJoin, { nick: "Carl", password: "wrong-password", accountPassword: "test-pass" });
     expect((await passwordError).code).toBe("INVALID_ROOM_PASSWORD");
 
     // 对局中禁止新身份

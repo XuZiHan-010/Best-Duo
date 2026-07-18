@@ -12,10 +12,12 @@ import { InMemoryAgentRegistry } from "./agent/registry.js";
 import { AgentRuntime } from "./agent/runtime.js";
 import { clearAllTimers } from "./game/timers.js";
 import { isAdminConfigured } from "./auth/adminAuth.js";
+import { createAccountStore } from "./auth/accountStore.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const progressStore = createProgressStore(config.dataDir);
+const accountStore = createAccountStore(config.dataDir);
 const levels = loadLevels();
 const room = createGameRoom(progressStore.load(), levels);
 const agentRegistry = new InMemoryAgentRegistry();
@@ -45,7 +47,7 @@ app.get("*", (_req, res) => {
 });
 
 io.on("connection", (socket) => {
-  registerHandlers({ io, socket, room, levels, progressStore, agentRegistry, agentRuntime });
+  registerHandlers({ io, socket, room, levels, progressStore, agentRegistry, agentRuntime, accountStore });
 });
 
 server.listen(config.port, config.host, () => {
