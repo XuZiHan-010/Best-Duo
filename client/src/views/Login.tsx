@@ -12,6 +12,7 @@ import {
 
 export function Login() {
   const [nick, setNick] = React.useState("");
+  const [accountPassword, setAccountPassword] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [avatar, setAvatar] = React.useState<string | null>(() => loadStoredAvatar());
   const [avatarError, setAvatarError] = React.useState<string | null>(null);
@@ -44,15 +45,17 @@ export function Login() {
     setAvatarError(null);
   }
 
+  const accountPasswordValid = accountPassword.length >= 4 && accountPassword.length <= 64;
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = nick.trim();
-    if (!trimmed || !password || !isConnected) return;
+    if (!trimmed || !password || !accountPasswordValid || !isConnected) return;
     clearError();
     setMyNick(trimmed);
     // 首次加入不带会话；服务端签发 player:session 后由 store 持久化，
-    // 后续刷新/断网走 handshake auth 恢复，昵称与密码不再作为重连凭据。
-    adapter.join({ nick: trimmed, avatar, password });
+    // 后续刷新/断网走 handshake auth 恢复，个人密码只在登录时提交（ADR-0006）。
+    adapter.join({ nick: trimmed, avatar, password, accountPassword });
   }
 
   return (
@@ -131,13 +134,29 @@ export function Login() {
             aria-describedby={lastError ? "login-error" : undefined}
           />
 
+          <label className="login__label" htmlFor="account-password-input">个人密码</label>
+          <input
+            id="account-password-input"
+            className="login__input"
+            type="password"
+            name="accountPassword"
+            autoComplete="current-password"
+            placeholder="个人密码（首次输入即注册）"
+            value={accountPassword}
+            maxLength={64}
+            onChange={(e) => setAccountPassword(e.target.value)}
+            disabled={connectionState === "disconnected"}
+            aria-describedby={lastError ? "login-error" : undefined}
+          />
+          <p className="login__hint">昵称与头像注册后不可修改；个人密码 4–64 位。</p>
+
           <label className="login__label" htmlFor="password-input">房间密码</label>
           <input
             id="password-input"
             className="login__input"
             type="password"
             name="password"
-            autoComplete="current-password"
+            autoComplete="off"
             placeholder="输入房间密码"
             value={password}
             maxLength={128}
@@ -154,7 +173,7 @@ export function Login() {
 
           <Button
             type="submit"
-            disabled={!nick.trim() || !password || !isConnected}
+            disabled={!nick.trim() || !password || !accountPasswordValid || !isConnected}
             loading={isLoading}
             className="login__submit"
           >
