@@ -40,7 +40,11 @@ export async function resetRoom(): Promise<void> {
   }
 }
 
-export async function join(page: Page, nick: string) {
+// 所有 E2E 登录共用同一个个人密码：账号库在整个 E2E 运行内持久，
+// 同昵称换密码会触发 ACCOUNT_PASSWORD_MISMATCH（ADR-0006）。
+export const E2E_ACCOUNT_PASSWORD = "e2e-pass";
+
+export async function join(page: Page, nick: string, accountPassword = E2E_ACCOUNT_PASSWORD) {
   // Absolute URL on purpose: helpers drive pages from manually created
   // browser.newContext() contexts, which do not inherit the config baseURL
   // (same trap as viewport — see setupTwoPlayersInPlacing).
@@ -48,6 +52,7 @@ export async function join(page: Page, nick: string) {
   const input = page.getByLabel("昵称");
   await expect(input).toBeEnabled();
   await input.fill(nick);
+  await page.getByLabel("个人密码").fill(accountPassword);
   await page.getByLabel("房间密码").fill("1234");
   await page.getByRole("button", { name: "进入房间" }).click();
 }

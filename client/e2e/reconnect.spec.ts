@@ -42,11 +42,12 @@ test("a duplicate nickname from another browser is rejected and cannot steal the
   await join(pageA, "Alice");
   await ready(pageA);
 
-  // 攻击路径：另一浏览器用相同昵称+正确房间密码加入
-  await join(pageB, "Alice");
+  // 攻击路径：另一浏览器用相同昵称+正确房间密码+错误个人密码加入（ADR-0006：
+  // 只有正确的账号密码才视为本人接管，错误密码一律拒绝）
+  await join(pageB, "Alice", "wrong-pass");
 
-  // 攻击者停留在登录页并看到占用提示
-  await expect(pageB.locator("#login-error")).toContainText("该昵称正在使用中");
+  // 攻击者停留在登录页并看到密码错误提示
+  await expect(pageB.locator("#login-error")).toContainText("密码不正确");
   await expect(pageB.locator(".login")).toBeVisible();
 
   // 原玩家完全不受影响：座位仍在、可正常操作

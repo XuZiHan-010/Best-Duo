@@ -1,5 +1,6 @@
 import { once } from "node:events";
 import { spawn } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -33,11 +34,16 @@ export default async function globalSetup() {
   // child process created by this setup.
   if (await isServerReady()) return;
 
+  // 账号库跨 E2E 运行会残留（同昵称换密码 → ACCOUNT_PASSWORD_MISMATCH），
+  // 自管服务器时每次启动前清空，保证登录场景确定性。
+  fs.rmSync(path.join(rootDir, ".tmp-e2e-data", "accounts.json"), { force: true });
+
   const child = spawn(process.execPath, [path.join(rootDir, "server/dist/index.js")], {
     cwd: rootDir,
     env: {
       ...process.env,
       PORT: "3100",
+      NODE_ENV: "test",
       DATA_DIR: path.join(rootDir, ".tmp-e2e-data"),
       HINT_WINDOW_MS: "2500",
       SEAT_HOLD_MS: "3000",
