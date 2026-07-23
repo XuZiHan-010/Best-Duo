@@ -39,7 +39,7 @@ Take Time Web Prototype 是一个私用的在线合作时钟谜题游戏原型�
 - 后端：Express + Socket.IO。
 - 共享层：`shared` 包维护前后端共用类型和事件定义。
 - 运行时状态：服务端单进程内存对象维护唯一全局房间和进行中的对局。
-- 当前进度持久化：Railway Volume 上的 JSON 文件保存已通关关卡与设置；面试版本目标迁移到 PostgreSQL，并增加 attempt、团队策略和 Agent 决策记录。
+- 当前进度持久化：Railway Volume 上的 JSON 文件保存已通关关卡与设置；面试版本目标迁移到 PostgreSQL，并增加 attempt、每座位策略、同关 `RetryBrief` 和 Agent 决策记录。
 - 部署：当前为 Railway 单 Web 服务；接入数据库后为单 Web Service + PostgreSQL Data Service。前端静态资源仍由 Express 托管，并通过 Socket.IO 做实时同步。
 
 设计原则：
@@ -123,13 +123,13 @@ V1-V4 的核心体验保持一致：
 - 隐藏牌值不会出现在非授权客户端状态或 DOM 中。
 - 成功通关会持久化到 JSON，服务重启后仍能显示已通关。
 - Railway 上页面加载、Socket 同步、Volume、重启恢复和 `SIGTERM` flush 行为通过验收。
-- V1 主流程已完成，M7 的全量回归与 Railway 验收仍需收口；V2/M8 代码已基本落地，剩余多人 E2E 与部署回归应并行完成。
+- V1 主流程与本地全量回归已完成，M7 剩余 Railway 验收；V2/M8 的 3/4 真人 Socket、完整 Playwright 与脚本 Agent 混合回归已落地，剩余真机与部署回归。
 
 ### 依赖与风险
 
 - 真实 Railway Volume 和 WebSocket 行为仍需人工验收。
 - 总关卡数 N 尚未确认，V1 只要求关卡体系可扩展和前 10 关可玩。
-- 前端 review fixes 需要全量回归确认。
+- 前端 review fixes 已通过本地全量回归，仍需真机与 Railway 环境确认。
 
 ## 6. V2：2–4 人弹性开局
 
@@ -179,7 +179,7 @@ V1-V4 的核心体验保持一致：
 
 ### 依赖与风险
 
-- V2/M8 代码已基本落地，当前剩余工作是 3/4 人 Socket 流程、Playwright E2E、移动端和 Railway 回归验收。
+- V2/M8 代码、3/4 人 Socket 流程、Playwright E2E 与模拟移动端多人布局已落地，当前剩余工作是真机和 Railway 回归验收。
 - 人数扩展会放大状态同步和 UI 布局复杂度，需要先以测试锁住 2 人回归。
 - 多人局的等待、离开和房主转移口径需要与 V1 断线规则兼容。
 
@@ -219,9 +219,10 @@ V1-V4 的核心体验保持一致：
 ### 主要能力
 
 - 后端实现 `AgentOrchestrator`，把 Agent 的讨论、策略编译、出牌和提示意图接入现有动作层。
-- 每次重新讨论/发牌创建新的 `attemptId`；团队策略与 Agent 私人 memory 只在当前 attempt 内有效。
+- 每次重新讨论/发牌创建新的 `attemptId`；公开感知/实体与每座位私人 memory 只在当前 attempt 内有效。
 - 讨论阶段使用不含手牌的 `DiscussionView`；出牌阶段使用经过遮蔽的 `TurnView`。
-- 讨论结束时生成全队唯一的 `TeamStrategy`；每个 Agent 另有不共享的 `SeatAgentMemory`。
+- 讨论结束时，每个 Agent 基于相同公开讨论独立生成并锁定自己的 `SeatStrategy`；公开承诺共享，私人理解、信念和计划隔离。
+- 同关 retry 可继承只含公开策略、区段结果、用户纠正和失败复盘的 `RetryBrief`；失败退出后的跨重启恢复由 M10 `LevelRunMemory` 持久化实现。
 - placement 与 hint 合并为一次结构化 `TurnDecision`，超时后走候选评分兜底。
 - 前端展示 agent 座位、agent 消息样式、房主加/撤 agent 入口和 agent 思考状态。
 - 配置 OpenAI/DeepSeek provider、模型、deadline、取消、降级和 telemetry，敏感密钥只放服务端环境变量。
@@ -233,8 +234,8 @@ V1-V4 的核心体验保持一致：
 - 3 真人 + 1 agent 可以完成 4 人局。
 - agent 不能看到超出座位权限的隐藏牌值。
 - agent 决策异常不会导致房间永久卡住。
-- retry/next 后旧策略、聊天和 Agent 私人 memory 不会进入新 attempt。
-- 多个 Agent 使用同一份锁定团队策略，但禁沟通阶段不共享私人判断。
+- retry 后旧聊天、手牌和 Agent 私人 memory 不会进入新 attempt，仅同关 `RetryBrief` 可作为讨论参考；next 不继承上一关具体策略。
+- 多个 Agent 共享公开讨论但使用各自锁定的 `SeatStrategy`，禁沟通阶段不共享私人判断和计划。
 - 真人玩家仍可区分哪些座位和消息来自 agent。
 - V1/V2 真人-only 流程不回归。
 
@@ -242,7 +243,7 @@ V1-V4 的核心体验保持一致：
 
 - V3 依赖 V2 的 N 座位、N 人回合和多人 UI 稳定。
 - LLM 输出不稳定，必须用结构化解析、重试和兜底策略控制风险。
-- 默认 5 秒窗口要求请求可取消、模型 deadline 提前结束，并用 p95/p99 与 fallback 率验证。
+- 默认 10 秒窗口要求请求可取消、模型 deadline 提前 1 秒结束，并用 p95/p99 与 fallback 率验证；AI 可见落子节奏通常位于窗口的 50%–65%，最少 5 秒。
 - 完全信息求解器不得读取真实隐藏牌后为 Agent 排名候选；高胜率评估必须基于可见信息和信念采样。
 - agent 可能破坏游戏乐趣，需要后续调参和提示词迭代。
 
@@ -337,12 +338,10 @@ V1-V4 的核心体验保持一致：
 
 ## 11. 当前优先级与下一步
 
-当前优先级是先收口 M8，再按新的 M9 实施计划推进：
+M8 本地自动化已经收口，当前优先级是完成环境验收，并按新的 M9 实施计划推进：
 
-1. 跑根目录 `npm run typecheck`、`npm test` 和前端 E2E。
-2. 本地双浏览器完整走一局：登录、准备、选关、讨论、出牌、提示、揭示、结算、重试或下一关。
-3. 对前端 review fixes 做人工 UI/a11y 验收。
-4. 在 Railway 验证页面加载、Socket 同步、Volume 进度保留、重启语义和 `SIGTERM` flush。
-5. 完成 M9.0：`attemptId`、讨论/出牌视图、团队策略和外部 memory。
-6. 完成 M9.1–M9.3：讨论协调、双 Provider、实时决策、候选生成和安全兜底。
-7. 接入 PostgreSQL，保存进度、attempt、策略和 Agent 决策指标，并建设 eval/复盘页。
+1. 对前端 review fixes 做真机 UI/a11y 验收。
+2. 在 Railway 验证页面加载、Socket 同步、Volume 进度保留、重启语义和 `SIGTERM` flush。
+3. 完成 M9.0：`attemptId`、讨论/出牌视图、感知/实体记忆、每座位策略和外部 memory。
+4. 完成 M9.1–M9.3：讨论协调、双 Provider、实时决策、候选生成和安全兜底。
+5. 接入 PostgreSQL，保存进度、attempt、策略和 Agent 决策指标，并建设 eval/复盘页。

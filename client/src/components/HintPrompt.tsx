@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import type { PendingHint, HintMarkers } from "@take-time/shared";
 import { CountdownTimer } from "./CountdownTimer.js";
 import { adapter } from "../socket/adapter.js";
@@ -14,6 +14,7 @@ export function HintPrompt({ pendingHint, hintMarkers }: HintPromptProps) {
   const noRef  = useRef<HTMLButtonElement>(null);
   const yesRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const hintLeft = hintMarkers.total - hintMarkers.used;
 
   // Focus "不翻" (No) on mount — the safer default
@@ -44,6 +45,8 @@ export function HintPrompt({ pendingHint, hintMarkers }: HintPromptProps) {
   };
 
   const decide = (decision: "yes" | "no") => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     adapter.hintDecide({ decision });
   };
 
@@ -96,7 +99,7 @@ export function HintPrompt({ pendingHint, hintMarkers }: HintPromptProps) {
             ref={yesRef}
             className="btn btn--primary hint-prompt__btn-yes"
             onClick={() => decide("yes")}
-            disabled={!canReveal}
+            disabled={!canReveal || isSubmitting}
             aria-label="翻开牌"
           >
             翻开
@@ -105,6 +108,7 @@ export function HintPrompt({ pendingHint, hintMarkers }: HintPromptProps) {
             ref={noRef}
             className="btn btn--ghost hint-prompt__btn-no"
             onClick={() => decide("no")}
+            disabled={isSubmitting}
             aria-label="不翻开"
           >
             不翻

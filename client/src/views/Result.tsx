@@ -3,6 +3,7 @@ import { useRoomStore } from "../store/useRoomStore.js";
 import { isHostSelector } from "../store/selectors.js";
 import { adapter } from "../socket/adapter.js";
 import { ConditionList } from "../components/ConditionList.js";
+import { AgentPublicSummary, agentStateForSeat } from "../components/AgentPublicSummary.js";
 
 const FAILURE_REASON_TEXT: Record<string, string> = {
   "rule-unmet":  "条件未满足",
@@ -69,6 +70,24 @@ export function Result() {
             results={failedConditions}
           />
         </div>
+      )}
+
+      {roomState.agentState.seats.length > 0 && (
+        <section className="result__agent-review">
+          <div className="result__agent-review-head"><p>AGENT REVIEW</p><h2>AI 队友协作复盘</h2></div>
+          <div className="result__agent-grid">
+            {roomState.seats.filter((seat) => seat.kind === "agent" && seat.nick).map((seat) => (
+              <article key={seat.id}><strong>{seat.nick}</strong><AgentPublicSummary
+                state={agentStateForSeat(roomState.agentState.seats, seat.id)}
+                reveal={roomState.revealResult ? { placements: roomState.placements, revealResult: roomState.revealResult } : undefined}
+              /></article>
+            ))}
+          </div>
+          {roomState.agentState.review && <div className="result__agent-lessons">
+            {roomState.agentState.review.lessons.map((lesson) => <p key={lesson}>↳ {lesson}</p>)}
+            {roomState.agentState.review.unresolvedIssues.map((issue) => <p key={issue} className="is-unresolved">? {issue}</p>)}
+          </div>}
+        </section>
       )}
 
       {/* Actions — host only */}

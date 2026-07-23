@@ -17,7 +17,7 @@
 ## 主要功能
 
 - 单房间 2–4 人在线合作对局，房间固定 4 个座位并按实际就位人数开局。
-- 玩家输入昵称后入座，准备后由第一个准备者成为房主。
+- 玩家输入昵称 + 个人密码入座（首次输入即注册账号，昵称与头像注册后固定；正确密码可跨设备接管自己的座位），准备后由第一个准备者成为房主。
 - 房主选择关卡、开始对局、推进流程。
 - 讨论阶段后进入禁沟通出牌阶段。
 - 每名玩家拥有私有手牌视图；桌面暗置牌的数值由服务端遮蔽，颜色对全体玩家可见。
@@ -163,12 +163,24 @@ npm run test:e2e -w @take-time/client
 | --- | --- | --- |
 | `PORT` | `3000` | 服务监听端口。Railway 会自动注入。 |
 | `HOST` | `0.0.0.0` | 服务监听地址。Railway 部署保持默认即可。 |
-| `DATA_DIR` | `./data` | 进度 JSON 的保存目录。Railway 上应指向 Volume 挂载目录。 |
+| `DATA_DIR` | `./data` | 进度、账号与账号审计文件的保存目录。Railway 上应指向 Volume 挂载目录。 |
 | `ROOM_PASSWORD` | `1234` | 房间密码。公开部署时建议设置为自己的值。 |
+| `ACCOUNT_EMAIL_KEY` | 未设置 | **必需的账号主密钥**：32 字节、base64/base64url 或 64 位 hex。用于派生邮箱索引与加密子密钥；缺失、错误或丢失时账号仓库 fail-closed。必须与 Volume 分开离线备份。 |
+| `ADMIN_USERNAME` | 未设置 | 管理员账号。与 `ADMIN_PASSWORD` 同时设置才启用管理员登录（`/admin`）。 |
+| `ADMIN_PASSWORD` | 未设置 | 管理员密码。必须是强密码且**不得与 `ROOM_PASSWORD` 相同**（相同则管理员登录被禁用）。轮换方式：改环境变量后重启服务。 |
 | `SEAT_HOLD_MS` | `60000` | 断线后座位保留时间，单位毫秒。 |
-| `HINT_WINDOW_MS` | `5000` | 提示标记窗口时间，单位毫秒。 |
+| `HINT_WINDOW_MS` | 未设置 | 仅测试用途：覆盖提示标记窗口毫秒数。默认不设置，窗口与每回合思考时间等长。 |
 | `HOST_START_GRACE_MS` | `15000` | 房主开始关卡后的宽限时间，单位毫秒。 |
 | `CLIENT_DIST_DIR` | `../../client/dist` | 后端运行时寻找前端构建产物的位置。通常不需要修改。 |
+| `OPENAI_API_KEY` / `DEEPSEEK_API_KEY` | 未设置 | Provider 全局 key；也可用 `AGENT_<TASK>_API_KEY` 为单个任务覆盖。 |
+| `AGENT_DISCUSSION_*` / `AGENT_TURN_*` / `AGENT_RETRY_BRIEF_*` | 见 M9.2 默认值 | 按任务覆盖 `PROVIDER`、`MODEL`、`BASE_URL`、`API_KEY`、`MAX_OUTPUT_TOKENS`；出牌还支持 `REASONING_EFFORT`。 |
+| `AGENT_CANDIDATE_ENGINE_V1` | `false` | 启用 M9.3 候选出牌主链；配对 eval 签署前保持关闭。 |
+| `AGENT_MODEL_TOP_K_ONLY` | `true` | 候选主链开启后，允许低置信回合调用模型从 top-K 中选择；设为 `false` 时运行纯 `candidate-top1` 基线。 |
+| `AGENT_CANDIDATE_CONFIDENCE_THRESHOLD` | `12` | top-1 与 top-2 分差达到该值时跳过 Provider，直接采用候选 #1。 |
+| `AGENT_ATTEMPT_MAX_CALLS` / `AGENT_ATTEMPT_MAX_TOKENS` | `40` / `200000` | 每个 attempt 的模型调用和 token 上限。 |
+| `AGENT_DAILY_MAX_CALLS` / `AGENT_DAILY_MAX_TOKENS` | `500` / `2000000` | 单进程 UTC 日模型调用和 token 上限。 |
+
+Provider 契约自检：`npm run agentlab:provider-contract -w @take-time/server -- --mock`；移除 `--mock` 后使用服务端环境变量调用真实 Provider，默认每个 fixture 重复 30 次（可用 `--repeat=N` 覆盖，会产生 API 费用）。输出只包含结构化指标，不包含 API key。
 
 ## Railway 部署
 
@@ -190,16 +202,19 @@ npm start
 
 1. 在 Railway 创建新项目，并连接这个 GitHub 仓库。
 2. 使用 Nixpacks 构建，保持仓库中的 `railway.json`。
-3. 添加一个 Volume，用来保存通关进度和房间设置。
+3. 添加一个 Volume，用来保存通关进度、房间设置、账号库与管理员账号审计。
 4. 将 `DATA_DIR` 设置为 Volume 的挂载路径，例如 `/data`。
-5. 可选：设置 `ROOM_PASSWORD`，避免公开地址被陌生人进入。
-6. 部署后访问 Railway 提供的域名，并检查 `/healthz` 是否返回 `ok: true`。
+5. 生成并设置 `ACCOUNT_EMAIL_KEY`，并把该密钥与 Volume 分开备份；密钥丢失后邮箱账号不可恢复。
+6. 可选：设置 `ROOM_PASSWORD`，避免公开地址被陌生人进入。
+7. 可选：设置 `ADMIN_USERNAME` 与 `ADMIN_PASSWORD`（强密码、不同于房间密码），启用 `/admin` 管理员入口：登录经确认后强制接管房间（终止对局、请出所有玩家、管理员入座为房主）。
+8. 部署后访问 Railway 提供的域名，并检查 `/healthz` 是否返回 `ok: true`。
 
 推荐 Railway 变量：
 
 ```text
 DATA_DIR=/data
 ROOM_PASSWORD=your-room-password
+ACCOUNT_EMAIL_KEY=<32-byte-base64-secret>
 NODE_ENV=production
 ```
 
@@ -219,7 +234,7 @@ data/     本地进度数据目录
 
 ## 项目状态
 
-当前是 Web 原型阶段：双人 MVP 主流程可用，固定 4 座与 2–4 人弹性开局已基本落地，真实 LLM Agent 尚在 M9 实施阶段。当前架构与实施顺序分别见 `docs/architecture.md` 和 `plans/m9-agent-implementation-plan.md`。
+当前是 Web 原型阶段：双人 MVP 主流程可用，固定 4 座与 2–4 人弹性开局已基本落地，真实 LLM Agent 尚在 M9 收口阶段。当前架构与剩余实施顺序分别见 `docs/architecture.md` 和 `plans/2026-07-18-agent-remaining-development-plan.md`；已完成里程碑与真实 Provider 联调记录保留在 `plans/m9-agent-implementation-plan.md`。
 
 ---
 
@@ -391,9 +406,18 @@ Runs the frontend Playwright E2E tests.
 | `DATA_DIR` | `./data` | Directory where the progress JSON file is saved. On Railway, this should point to the Volume mount path. |
 | `ROOM_PASSWORD` | `1234` | Room password. For public deployments, set your own value. |
 | `SEAT_HOLD_MS` | `60000` | Seat hold time after disconnect, in milliseconds. |
-| `HINT_WINDOW_MS` | `5000` | Hint marker window, in milliseconds. |
+| `HINT_WINDOW_MS` | unset | Test-only override for the hint marker window in milliseconds. When unset, the window equals the per-turn think time. |
 | `HOST_START_GRACE_MS` | `15000` | Grace period after the host starts a level, in milliseconds. |
 | `CLIENT_DIST_DIR` | `../../client/dist` | Runtime path used by the backend to locate frontend build output. Usually does not need to be changed. |
+| `OPENAI_API_KEY` / `DEEPSEEK_API_KEY` | unset | Provider-wide keys; override per task with `AGENT_<TASK>_API_KEY`. |
+| `AGENT_DISCUSSION_*` / `AGENT_TURN_*` / `AGENT_RETRY_BRIEF_*` | M9.2 defaults | Per-task `PROVIDER`, `MODEL`, `BASE_URL`, `API_KEY`, and `MAX_OUTPUT_TOKENS`; turn also supports `REASONING_EFFORT`. |
+| `AGENT_CANDIDATE_ENGINE_V1` | `false` | Enables the M9.3 candidate placement path; keep disabled until paired eval is signed off. |
+| `AGENT_MODEL_TOP_K_ONLY` | `true` | When the candidate path is enabled, lets low-confidence turns ask the model to choose from top-K; `false` runs the pure `candidate-top1` baseline. |
+| `AGENT_CANDIDATE_CONFIDENCE_THRESHOLD` | `12` | Skips the Provider and uses candidate #1 when the top-1/top-2 score gap reaches this value. |
+| `AGENT_ATTEMPT_MAX_CALLS` / `AGENT_ATTEMPT_MAX_TOKENS` | `40` / `200000` | Per-attempt model call and token limits. |
+| `AGENT_DAILY_MAX_CALLS` / `AGENT_DAILY_MAX_TOKENS` | `500` / `2000000` | Per-process UTC-day model call and token limits. |
+
+Run the Provider contract with `npm run agentlab:provider-contract -w @take-time/server -- --mock`; remove `--mock` to use configured real Providers. Real mode repeats every fixture 30 times by default (override with `--repeat=N`) and incurs API costs. Reports contain structured metrics and never API keys.
 
 ## Railway Deployment
 
@@ -444,4 +468,4 @@ data/     Local progress data directory
 
 ## Project Status
 
-This project is currently a web prototype. The two-player MVP flow is usable, and fixed four-seat / elastic 2–4-player support is mostly implemented. Real LLM agents remain part of the M9 implementation phase; see `docs/architecture.md` and `plans/m9-agent-implementation-plan.md`.
+This project is currently a web prototype. The two-player MVP flow is usable, and fixed four-seat / elastic 2–4-player support is mostly implemented. Real LLM agents are in the M9 completion phase; see `docs/architecture.md` and `plans/2026-07-18-agent-remaining-development-plan.md`. Completed milestones and real-provider validation history remain in `plans/m9-agent-implementation-plan.md`.

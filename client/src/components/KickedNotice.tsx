@@ -5,6 +5,9 @@ import { useRoomStore } from "../store/useRoomStore.js";
 const MESSAGES: Record<KickReason, string> = {
   ADMIN_SEIZED_ROOM: "管理员已强制结束当前游戏，您已被请出房间",
   KICKED_BY_ADMIN: "你已被管理员请出房间",
+  ACCOUNT_FORCE_LOGOUT: "管理员已强制退出你的账号，请重新登录",
+  ACCOUNT_DISABLED: "账号已被停用，如有疑问请联系管理员",
+  ACCOUNT_DELETED: "账号已被删除",
 };
 
 // 被管理员请出的终态提示：本地会话已清除，不做任何自动重连，

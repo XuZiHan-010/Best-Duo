@@ -12,7 +12,7 @@ const fallbackProgress = (): ProgressState => ({
 });
 
 const allowedDiscussionMinutes = new Set<RoomSettings["discussionMinutes"]>([5, 10, 15, 20]);
-const allowedThinkSeconds = new Set<RoomSettings["thinkSeconds"]>([5, 10, 15, 20, 30]);
+const allowedThinkSeconds = new Set<RoomSettings["thinkSeconds"]>([10, 15, 20, 25, 30]);
 const allowedHintMarkerCounts = new Set<RoomSettings["hintMarkerCount"]>([2, 3, 4]);
 
 const normalizeSettings = (value: unknown): RoomSettings => {

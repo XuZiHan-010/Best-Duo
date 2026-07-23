@@ -14,6 +14,17 @@ const nickSchema = z
   .max(24)
   .regex(/^[一-龥a-zA-Z0-9_\-\s]+$/, "昵称只允许中文、英文、数字、下划线、横线和空格");
 
+const accountNicknameSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(16)
+  .regex(/^[一-龥a-zA-Z0-9_\-\s]+$/, "昵称只允许中文、英文、数字、下划线、横线和空格");
+
+const emailSchema = z.string().trim().min(3).max(254).email();
+const accountPasswordSchema = z.string().min(8).max(64);
+const roomPasswordSchema = z.string().min(1).max(128);
+
 const playerSessionCredentialsSchema = z
   .object({
     playerId: z.string().min(1).max(128),
@@ -40,10 +51,66 @@ const accountJoinSchema = z.object({
 
 export const playerJoinSchema = z.union([sessionJoinSchema, accountJoinSchema]);
 
+export const accountRegisterSchema = z
+  .object({
+    email: emailSchema,
+    password: accountPasswordSchema,
+    passwordConfirmation: accountPasswordSchema,
+    nickname: accountNicknameSchema,
+    roomPassword: roomPasswordSchema,
+    avatar: avatarDataUrlSchema.nullish()
+  })
+  .strict()
+  .refine((input) => input.password === input.passwordConfirmation, {
+    message: "两次输入的密码不一致",
+    path: ["passwordConfirmation"]
+  });
+
+export const accountLoginSchema = z
+  .object({
+    email: emailSchema,
+    password: accountPasswordSchema,
+    roomPassword: roomPasswordSchema
+  })
+  .strict();
+
+export const accountProfileUpdateSchema = z
+  .object({
+    nickname: accountNicknameSchema,
+    avatar: avatarDataUrlSchema.nullable().optional()
+  })
+  .strict();
+
+export const accountPasswordChangeSchema = z
+  .object({
+    currentPassword: z.string().min(1).max(64),
+    newPassword: accountPasswordSchema,
+    newPasswordConfirmation: accountPasswordSchema
+  })
+  .strict()
+  .refine((input) => input.newPassword === input.newPasswordConfirmation, {
+    message: "两次输入的新密码不一致",
+    path: ["newPasswordConfirmation"]
+  });
+
+export const accountEmailChangeSchema = z
+  .object({ currentPassword: z.string().min(1).max(64), newEmail: emailSchema })
+  .strict();
+
+export const accountSessionsRevokeOthersSchema = z.object({}).strict();
+
 export const adminLoginSchema = z
   .object({
     username: z.string().min(1).max(64),
     password: z.string().min(1).max(128),
+    nick: nickSchema.optional(),
+    avatar: avatarDataUrlSchema.nullish(),
+    intent: z.union([z.literal("manage"), z.literal("enterRoom")]).optional()
+  })
+  .strict();
+
+export const adminEnterRoomSchema = z
+  .object({
     nick: nickSchema.optional(),
     avatar: avatarDataUrlSchema.nullish()
   })
@@ -63,10 +130,33 @@ export const adminKickPlayerSchema = z
   })
   .strict();
 
+export const adminAccountsListSchema = z
+  .object({
+    query: z.string().trim().max(100).optional(),
+    status: z.union([z.literal("active"), z.literal("disabled"), z.literal("deleted"), z.literal("all")]).optional()
+  })
+  .strict();
+
+const adminAccountTargetShape = {
+  playerId: z.string().min(1).max(128),
+  reason: z.string().trim().min(1).max(200)
+};
+
+export const adminAccountsForceLogoutSchema = z.object(adminAccountTargetShape).strict();
+
+export const adminAccountsSetStatusSchema = z
+  .object({
+    ...adminAccountTargetShape,
+    status: z.union([z.literal("active"), z.literal("disabled")])
+  })
+  .strict();
+
+export const adminAccountsSoftDeleteSchema = z.object(adminAccountTargetShape).strict();
+
 export const settingsUpdateSchema = z
   .object({
     discussionMinutes: z.union([z.literal(5), z.literal(10), z.literal(15), z.literal(20)]).optional(),
-    thinkSeconds: z.union([z.literal(5), z.literal(10), z.literal(15), z.literal(20), z.literal(30)]).optional(),
+    thinkSeconds: z.union([z.literal(10), z.literal(15), z.literal(20), z.literal(25), z.literal(30)]).optional(),
     hintMarkerCount: z.union([z.literal(2), z.literal(3), z.literal(4)]).optional()
   })
   .strict();

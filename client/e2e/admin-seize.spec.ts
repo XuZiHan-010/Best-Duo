@@ -13,8 +13,9 @@ async function adminLogin(page: Page, nick = "管理员") {
   await page.goto(SERVER_URL + "/admin");
   await page.getByLabel("管理员账号").fill(ADMIN_USERNAME);
   await page.getByLabel("管理员密码").fill(ADMIN_PASSWORD);
-  await page.getByLabel("入座昵称").fill(nick);
-  await page.getByRole("button", { name: "登录" }).click();
+  await page.getByLabel("进入房间时的昵称").fill(nick);
+  await page.getByRole("button", { name: "进入管理台" }).click();
+  await expect(page.getByRole("heading", { name: "玩家账号维护" })).toBeVisible();
 }
 
 test("admin seize: decline is side-effect free, confirm kicks everyone and seats the admin as host", async ({ browser }) => {
@@ -23,23 +24,22 @@ test("admin seize: decline is side-effect free, confirm kicks everyone and seats
   const adminContext = await browser.newContext();
   const adminPage = await adminContext.newPage();
 
-  // 登录后收到确认弹窗（对局中文案）
+  // 后台登录本身不占座、不清场；进入房间才要求确认。
   await adminLogin(adminPage);
-  await expect(adminPage.locator(".admin-confirm")).toBeVisible();
-  await expect(adminPage.locator(".admin-confirm__title")).toContainText(
-    "当前房间有玩家正在游戏，是否要强制进入房间并终止当前游戏？"
-  );
+  await adminPage.getByRole("button", { name: "房间管理" }).click();
+  await expect(adminPage.getByText("唯一房间管理")).toBeVisible();
+  await adminPage.getByRole("button", { name: "以管理员身份进入房间" }).click();
+  await expect(adminPage.getByRole("heading", { name: "确认接管房间" })).toBeVisible();
 
   // 选"否"：弹窗关闭，对局完全不受影响
-  await adminPage.getByRole("button", { name: "否", exact: true }).click();
-  await expect(adminPage.locator(".admin-confirm")).toHaveCount(0);
+  await adminPage.getByRole("button", { name: "取消", exact: true }).click();
+  await expect(adminPage.getByRole("heading", { name: "确认接管房间" })).toHaveCount(0);
   await expect(pageA.locator(".placing")).toBeVisible();
   await expect(pageB.locator(".placing")).toBeVisible();
 
-  // 再次登录并选"是"：强制接管
-  await adminPage.getByRole("button", { name: "登录" }).click();
-  await expect(adminPage.locator(".admin-confirm")).toBeVisible();
-  await adminPage.getByRole("button", { name: "是", exact: true }).click();
+  // 再次发起并确认：强制接管
+  await adminPage.getByRole("button", { name: "以管理员身份进入房间" }).click();
+  await adminPage.getByRole("button", { name: "确认接管", exact: true }).click();
 
   // 两名玩家看到终态提示
   await expect(pageA.locator(".kicked-notice")).toContainText("管理员已强制结束当前游戏，您已被请出房间");
@@ -57,15 +57,17 @@ test("admin seize: decline is side-effect free, confirm kicks everyone and seats
 
   // 被踢玩家点"返回登录"后回登录页
   await pageA.getByRole("button", { name: "返回登录" }).click();
-  await expect(pageA.locator(".login")).toBeVisible();
+  await expect(pageA.locator(".auth")).toBeVisible();
 });
 
 test("admin enters an empty room directly and can kick a later joiner, who may rejoin as a new player", async ({ browser }) => {
   const adminContext = await browser.newContext();
   const adminPage = await adminContext.newPage();
 
-  // 空房间：登录后不弹确认，直接入座为房主
+  // 空房间：后台登录仍不入座；显式进入后直接成为房主。
   await adminLogin(adminPage);
+  await adminPage.getByRole("button", { name: "房间管理" }).click();
+  await adminPage.getByRole("button", { name: "以管理员身份进入房间" }).click();
   await expect(adminPage.locator(".lobby")).toBeVisible();
   await expect(adminPage.locator(".player-seat--me .player-seat__host-badge")).toBeVisible();
 
@@ -85,8 +87,35 @@ test("admin enters an empty room directly and can kick a later joiner, who may r
   await expect(adminPage.getByText("Newbie")).toHaveCount(0);
   await expect(adminPage.locator(".player-seat--me .player-seat__host-badge")).toBeVisible();
 
-  // 共享密码语义：被请出者可作为全新玩家再次加入
+  // 请出只释放座位，不等于退出账号：未入座仍可进入账户安全页。
   await playerPage.getByRole("button", { name: "返回登录" }).click();
+  await playerPage.goto(SERVER_URL + "/account/security");
+  await expect(playerPage.getByRole("heading", { name: "公开资料" })).toBeVisible();
+  await expect(playerPage.getByLabel("游戏昵称")).toHaveValue("Newbie");
+
+  // 返回大厅后仍可用另一账号加入。
   await join(playerPage, "Fresh");
   await expect(playerPage.locator(".player-seat--me")).toContainText("Fresh");
+});
+
+test("admin account console lists masked accounts and force-logs out with an audited reason", async ({ browser }) => {
+  const playerContext = await browser.newContext();
+  const playerPage = await playerContext.newPage();
+  await join(playerPage, "AdminLedgerUser");
+
+  const adminContext = await browser.newContext();
+  const adminPage = await adminContext.newPage();
+  await adminLogin(adminPage);
+
+  const row = adminPage.locator("tr", { hasText: "AdminLedgerUser" });
+  await expect(row).toBeVisible();
+  await expect(row).toContainText("a***@e2e.example");
+  await row.getByRole("button", { name: "强退" }).click();
+  await adminPage.getByLabel("操作原因（将写入审计）").fill("E2E 安全检查");
+  await adminPage.getByRole("button", { name: "确认强制退出" }).click();
+
+  await expect(playerPage.locator(".kicked-notice")).toContainText("管理员已强制退出你的账号");
+  await expect(adminPage.getByRole("status")).toContainText("强制登出");
+  await playerContext.close();
+  await adminContext.close();
 });

@@ -3,6 +3,9 @@ import {
   ClientEvents,
   shouldAcceptRoomState,
   ServerEvents,
+  type AccountSessionPayload,
+  type AccountActionResultPayload,
+  type AccountProfilePayload,
   type KickReason,
   type PlayerKickedPayload,
   type PlayerSessionPayload,
@@ -12,8 +15,8 @@ import {
   type SeatId,
   type TimerState,
 } from "@take-time/shared";
-import { socket, onConnectionChange, setSessionAuth, type ConnectionState } from "../socket/client.js";
-import { clearPlayerSession, savePlayerSession } from "../lib/session.js";
+import { socket, onConnectionChange, setAccountSessionAuth, setSessionAuth, type ConnectionState } from "../socket/client.js";
+import { clearAccountSession, clearPlayerSession, saveAccountSession, savePlayerSession } from "../lib/session.js";
 
 export interface RoomStore {
   roomState: PublicRoomState | null;
@@ -25,6 +28,8 @@ export interface RoomStore {
   kickNotice: KickReason | null;
   isAdmin: boolean;
   connectionState: ConnectionState;
+  accountProfile: AccountProfilePayload | null;
+  lastAccountAction: AccountActionResultPayload | null;
 
   setRoomState: (s: PublicRoomState | null) => void;
   setMyHand: (h: PublicHandCard[]) => void;
@@ -36,6 +41,8 @@ export interface RoomStore {
   setKickNotice: (reason: KickReason | null) => void;
   setIsAdmin: (isAdmin: boolean) => void;
   setConnectionState: (s: ConnectionState) => void;
+  setAccountProfile: (profile: AccountProfilePayload | null) => void;
+  setLastAccountAction: (result: AccountActionResultPayload | null) => void;
   clearError: () => void;
 }
 
@@ -49,6 +56,8 @@ export const useRoomStore = create<RoomStore>((set) => ({
   kickNotice: null,
   isAdmin: false,
   connectionState: "connecting",
+  accountProfile: null,
+  lastAccountAction: null,
 
   setRoomState: (s) => set({ roomState: s }),
   setMyHand: (h) => set({ myHand: h }),
@@ -60,17 +69,27 @@ export const useRoomStore = create<RoomStore>((set) => ({
   setKickNotice: (reason) => set({ kickNotice: reason }),
   setIsAdmin: (isAdmin) => set({ isAdmin }),
   setConnectionState: (s) => set({ connectionState: s }),
+  setAccountProfile: (profile) => set({ accountProfile: profile }),
+  setLastAccountAction: (result) => set({ lastAccountAction: result }),
   clearError: () => set({ lastError: null }),
 }));
 
-// 会话彻底失效（座位丢失、被踢、服务端判定无效）时的统一清理
-const dropLocalSession = () => {
+// 座位令牌与账号令牌分离：离座不等于退出账号。
+const dropLocalSeatSession = () => {
   const store = useRoomStore.getState();
   store.clearMyNick();
   store.setMySeatId(null);
   store.setIsAdmin(false);
   clearPlayerSession();
   setSessionAuth(null);
+};
+
+const dropLocalAccountSession = () => {
+  const store = useRoomStore.getState();
+  store.setAccountProfile(null);
+  store.setLastAccountAction(null);
+  clearAccountSession();
+  setAccountSessionAuth(null);
 };
 
 const requestRoomSync = () => {
@@ -94,13 +113,18 @@ socket.on(ServerEvents.RoomState, (s: PublicRoomState) => {
   if (!myNick && mySeat?.nick) store.setMyNick(mySeat.nick);
   const effectiveNick = myNick ?? mySeat?.nick ?? null;
 
-  const wasConfirmed = Boolean(effectiveNick && prev?.seats.some((seat) => seat.nick === effectiveNick));
-  const stillConfirmed = Boolean(effectiveNick && s.seats.some((seat) => seat.nick === effectiveNick));
+  // 会话身份以 seatId 为准；昵称是可修改资料，不能拿旧昵称判断“座位丢失”。
+  const wasConfirmed = mySeatId
+    ? Boolean(prev?.seats.some((seat) => seat.id === mySeatId && seat.nick))
+    : Boolean(effectiveNick && prev?.seats.some((seat) => seat.nick === effectiveNick));
+  const stillConfirmed = mySeatId
+    ? Boolean(s.seats.some((seat) => seat.id === mySeatId && seat.nick))
+    : Boolean(effectiveNick && s.seats.some((seat) => seat.nick === effectiveNick));
 
   store.setRoomState(s);
 
   if (wasConfirmed && !stillConfirmed) {
-    dropLocalSession();
+    dropLocalSeatSession();
   }
 });
 
@@ -110,13 +134,31 @@ socket.on(ServerEvents.PlayerSession, (p: PlayerSessionPayload) => {
   useRoomStore.getState().setMySeatId(p.seatId);
 });
 
+socket.on(ServerEvents.AccountSession, (session: AccountSessionPayload) => {
+  saveAccountSession(session);
+  setAccountSessionAuth(session);
+});
+
+socket.on(ServerEvents.AccountProfile, (profile: AccountProfilePayload) => {
+  const store = useRoomStore.getState();
+  store.setAccountProfile(profile);
+  if (store.mySeatId) store.setMyNick(profile.nickname);
+});
+
+socket.on(ServerEvents.AccountActionResult, (result: AccountActionResultPayload) => {
+  useRoomStore.getState().setLastAccountAction(result);
+});
+
 socket.on(ServerEvents.AdminSession, () => {
   useRoomStore.getState().setIsAdmin(true);
 });
 
 socket.on(ServerEvents.PlayerKicked, (p: PlayerKickedPayload) => {
   const store = useRoomStore.getState();
-  dropLocalSession();
+  dropLocalSeatSession();
+  if (["ACCOUNT_FORCE_LOGOUT", "ACCOUNT_DISABLED", "ACCOUNT_DELETED"].includes(p.reason)) {
+    dropLocalAccountSession();
+  }
   store.setMyHand([]);
   store.setTimer(null);
   store.setRoomState(null);
@@ -133,7 +175,7 @@ socket.on(ServerEvents.TimerSync, (t: TimerState) => {
 
 socket.on(ServerEvents.GameEnded, () => {
   const store = useRoomStore.getState();
-  dropLocalSession();
+  dropLocalSeatSession();
   store.setMyHand([]);
   store.setTimer(null);
   store.setRoomState(null);
@@ -143,7 +185,11 @@ socket.on(ServerEvents.RoomError, (e: RoomErrorPayload) => {
   const store = useRoomStore.getState();
   store.setLastError(e);
   if (e.code === "INVALID_PLAYER_SESSION") {
-    dropLocalSession();
+    dropLocalSeatSession();
+    return;
+  }
+  if (e.code === "INVALID_ACCOUNT_SESSION" || e.code === "ACCOUNT_SESSION_REQUIRED") {
+    dropLocalAccountSession();
     return;
   }
   const { myNick, roomState } = store;

@@ -17,7 +17,7 @@ const optionalNumberFromEnv = (name: string): number | null => {
 
 export const defaultSettings: RoomSettings = {
   discussionMinutes: 5,
-  thinkSeconds: 5,
+  thinkSeconds: 10,
   hintMarkerCount: 3,
   capacity: 4
 };
@@ -39,6 +39,9 @@ export const config = {
   // 生产环境未配置时启动日志会给出警告（见 index.ts）。
   adminUsername: process.env.ADMIN_USERNAME ?? "",
   adminPassword: process.env.ADMIN_PASSWORD ?? "",
+  // 32 字节主密钥（base64/base64url 或 64 位 hex），仅用于 HKDF 派生邮箱索引与加密子密钥。
+  // 缺失或错误时账号仓库 fail-closed，不允许用空库继续运行。
+  accountEmailKey: process.env.ACCOUNT_EMAIL_KEY ?? "",
   // server/index.ts resolves this relative to the compiled server/dist/ dir,
   // so it needs two levels up to reach the sibling client/dist.
   clientDistDir: process.env.CLIENT_DIST_DIR ?? "../../client/dist"

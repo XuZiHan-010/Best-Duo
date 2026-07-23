@@ -35,6 +35,12 @@ export function RoomView() {
   const kickNotice = useRoomStore((s) => s.kickNotice);
   const showToast  = lastError !== null && myNick !== null;
 
+  React.useEffect(() => {
+    if (myNick && window.location.pathname === "/account/register") {
+      window.history.replaceState({}, "", "/");
+    }
+  }, [myNick]);
+
   if (kickNotice) return <KickedNotice reason={kickNotice} />;
 
   return (

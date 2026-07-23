@@ -3,10 +3,12 @@ import { dealRules } from "./dealRules.js";
 import { occupiedPlayerCount, occupiedSeats } from "./room.js";
 import { canSolveDeal, type SolverCard } from "./solver.js";
 
-const shuffle = <T>(values: T[]) => {
+export type RandomSource = () => number;
+
+const shuffle = <T>(values: T[], rng: RandomSource) => {
   const copy = [...values];
   for (let index = copy.length - 1; index > 0; index -= 1) {
-    const swapIndex = Math.floor(Math.random() * (index + 1));
+    const swapIndex = Math.floor(rng() * (index + 1));
     [copy[index], copy[swapIndex]] = [copy[swapIndex], copy[index]];
   }
   return copy;
@@ -23,7 +25,8 @@ export const buildCardPool = (): Card[] => {
   return pool;
 };
 
-export const dealHands = (room: GameRoom) => {
+// rng 可注入：eval runner 用固定种子重放同一局；生产默认 Math.random。
+export const dealHands = (room: GameRoom, rng: RandomSource = Math.random) => {
   if (!room.currentChallenge) throw new Error("No challenge selected");
 
   const seated = occupiedSeats(room);
@@ -33,7 +36,7 @@ export const dealHands = (room: GameRoom) => {
 
   let deck: SolverCard[] | null = null;
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    const candidate = shuffle(buildCardPool())
+    const candidate = shuffle(buildCardPool(), rng)
       .slice(0, neededCards)
       .map<SolverCard>((card, index) => ({
         ...card,

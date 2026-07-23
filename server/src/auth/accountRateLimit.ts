@@ -1,33 +1,94 @@
 import { FailureRateLimiter } from "./adminAuth.js";
 
-// 账号密码失败限流：按昵称维度的 60 秒滑动窗口（复用管理员限流的窗口实现）。
-// 成功登录即清除该昵称的失败记录，防止攻击者用错误尝试锁死合法昵称后仍长期占用内存。
+// 账号认证失败限流：调用方可按邮箱登录标识或 playerId 分桶。
 export class AccountRateLimiter {
-  private limiters = new Map<string, FailureRateLimiter>();
+  private limiters = new Map<string, { limiter: FailureRateLimiter; lastSeenAt: number }>();
+  private lastSweepAt = 0;
 
   constructor(
     private readonly maxFailures = 5,
-    private readonly windowMs = 60_000
+    private readonly windowMs = 60_000,
+    private readonly maxBuckets = 10_000
   ) {}
 
-  private limiterFor(nick: string): FailureRateLimiter {
-    let limiter = this.limiters.get(nick);
-    if (!limiter) {
-      limiter = new FailureRateLimiter(this.maxFailures, this.windowMs);
-      this.limiters.set(nick, limiter);
+  private prune(now: number, force = false): void {
+    if (!force && now - this.lastSweepAt < this.windowMs) return;
+    this.lastSweepAt = now;
+    const cutoff = now - this.windowMs;
+    for (const [key, bucket] of this.limiters) {
+      if (bucket.lastSeenAt <= cutoff) this.limiters.delete(key);
     }
-    return limiter;
   }
 
-  blocked(nick: string): boolean {
-    return this.limiterFor(nick).blocked();
+  private limiterFor(key: string): FailureRateLimiter {
+    const now = Date.now();
+    this.prune(now, !this.limiters.has(key) && this.limiters.size >= Math.max(1, this.maxBuckets));
+    let bucket = this.limiters.get(key);
+    if (!bucket) {
+      while (this.limiters.size >= Math.max(1, this.maxBuckets)) {
+        const oldestKey = this.limiters.keys().next().value as string | undefined;
+        if (!oldestKey) break;
+        this.limiters.delete(oldestKey);
+      }
+      bucket = { limiter: new FailureRateLimiter(this.maxFailures, this.windowMs), lastSeenAt: now };
+      this.limiters.set(key, bucket);
+    } else {
+      bucket.lastSeenAt = now;
+      // Map 插入顺序同时作为近似 LRU；刷新活跃桶，达到硬上限时优先淘汰最旧桶。
+      this.limiters.delete(key);
+      this.limiters.set(key, bucket);
+    }
+    return bucket.limiter;
   }
 
-  fail(nick: string): void {
-    this.limiterFor(nick).fail();
+  blocked(key: string): boolean {
+    return this.limiterFor(key).blocked();
   }
 
-  reset(nick: string): void {
-    this.limiters.delete(nick);
+  fail(key: string): void {
+    this.limiterFor(key).fail();
+  }
+
+  reset(key: string): void {
+    this.limiters.delete(key);
+  }
+}
+
+/** 对成功与失败操作都计数，覆盖注册、换邮和管理员写操作等高风险入口。 */
+export class ActionRateLimiter {
+  private attempts = new Map<string, number[]>();
+  private lastSweepAt = 0;
+
+  constructor(
+    private readonly maxAttempts = 10,
+    private readonly windowMs = 60_000,
+    private readonly maxBuckets = 10_000
+  ) {}
+
+  take(key: string): boolean {
+    const now = Date.now();
+    const cutoff = now - this.windowMs;
+    const needsCapacity = !this.attempts.has(key) && this.attempts.size >= Math.max(1, this.maxBuckets);
+    if (now - this.lastSweepAt >= this.windowMs || needsCapacity) {
+      this.lastSweepAt = now;
+      for (const [candidateKey, timestamps] of this.attempts) {
+        const active = timestamps.filter((at) => at > cutoff);
+        if (active.length === 0) this.attempts.delete(candidateKey);
+        else this.attempts.set(candidateKey, active);
+      }
+    }
+    while (!this.attempts.has(key) && this.attempts.size >= Math.max(1, this.maxBuckets)) {
+      const oldestKey = this.attempts.keys().next().value as string | undefined;
+      if (!oldestKey) break;
+      this.attempts.delete(oldestKey);
+    }
+    const recent = (this.attempts.get(key) ?? []).filter((at) => at > cutoff);
+    if (recent.length >= this.maxAttempts) {
+      this.attempts.set(key, recent);
+      return false;
+    }
+    recent.push(now);
+    this.attempts.set(key, recent);
+    return true;
   }
 }

@@ -21,6 +21,9 @@ export function Discussion() {
   }
 
   const { currentChallenge, chat, placements } = roomState;
+  // 服务端正在收口 Agent 策略（discussion → placing 转换中）；
+  // 状态唯一来源是服务端，保证多标签页/重连一致。
+  const strategyFinalizing = Boolean(roomState.agentState?.strategyFinalizing);
 
   if (!rulesAccepted) {
     return (
@@ -48,14 +51,17 @@ export function Discussion() {
             <button
               className="btn btn--ghost discussion__begin-btn"
               onClick={() => adapter.beginPlacement()}
-              disabled={isOffline}
+              disabled={isOffline || strategyFinalizing}
             >
-              ▶ 提前开始出牌
+              {strategyFinalizing ? "正在整理讨论策略…" : "▶ 提前开始出牌"}
             </button>
           )}
-          {(!isHost || isOffline) && (
+          {(!isHost || isOffline || strategyFinalizing) && (
             <div className="discussion__status-group" role="status" aria-live="polite">
-              {!isHost && (
+              {strategyFinalizing && (
+                <p className="discussion__status">AI 正在整理讨论策略，马上开始出牌…</p>
+              )}
+              {!isHost && !strategyFinalizing && (
                 <p className="discussion__status">等待房主或倒计时结束…</p>
               )}
               {isOffline && (

@@ -20,7 +20,7 @@ describe("state version synchronization", () => {
         clearedLevels: [],
         settings: {
           discussionMinutes: 5,
-          thinkSeconds: 5,
+          thinkSeconds: 10,
           hintMarkerCount: 3,
           capacity: 2
         }

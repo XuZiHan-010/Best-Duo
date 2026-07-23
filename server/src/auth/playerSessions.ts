@@ -12,6 +12,7 @@ interface PlayerSessionRecord {
   previousTokenExpiresAt: number;
   issuedAt: number;
   isAdmin: boolean;
+  credentialVersion: number | null;
 }
 
 const hashToken = (token: string) => createHash("sha256").update(token).digest();
@@ -22,7 +23,7 @@ export class PlayerSessionStore {
 
   issue(
     seatId: SeatId,
-    options?: { isAdmin?: boolean; playerId?: string }
+    options?: { isAdmin?: boolean; playerId?: string; credentialVersion?: number }
   ): { playerId: string; reconnectToken: string } {
     this.revokeBySeat(seatId);
     // 账号体系（ADR-0006）下传入账号的持久 playerId；未传时内部生成（管理员等路径）。
@@ -35,14 +36,22 @@ export class PlayerSessionStore {
       previousTokenHash: null,
       previousTokenExpiresAt: 0,
       issuedAt: Date.now(),
-      isAdmin: options?.isAdmin === true
+      isAdmin: options?.isAdmin === true,
+      credentialVersion: options?.credentialVersion ?? null
     });
     return { playerId, reconnectToken };
   }
 
-  verify(playerId: string, token: string): SeatId | null {
+  verify(playerId: string, token: string, credentialVersion?: number): SeatId | null {
     const record = this.records.get(playerId);
     if (!record) return null;
+    if (
+      record.credentialVersion !== null &&
+      (credentialVersion === undefined || record.credentialVersion !== credentialVersion)
+    ) {
+      this.records.delete(playerId);
+      return null;
+    }
     const candidate = hashToken(token);
     if (hashEquals(candidate, record.tokenHash)) return record.seatId;
     if (
@@ -53,6 +62,10 @@ export class PlayerSessionStore {
       return record.seatId;
     }
     return null;
+  }
+
+  credentialVersionOf(playerId: string): number | null {
+    return this.records.get(playerId)?.credentialVersion ?? null;
   }
 
   rotate(playerId: string): string | null {

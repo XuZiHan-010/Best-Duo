@@ -41,6 +41,7 @@ export const releaseSeat = (room: GameRoom, seat: Seat) => {
   seat.avatar = null;
   seat.kind = "human";
   seat.agentId = undefined;
+  seat.playerId = undefined;
   seat.connected = false;
   seat.socketId = undefined;
   room.ready[seat.id] = false;

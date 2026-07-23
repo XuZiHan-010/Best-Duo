@@ -55,6 +55,21 @@ const waitForEvent = <T>(socket: ClientSocket, event: string, timeoutMs = 1_000)
     socket.once(event, onEvent);
   });
 
+const waitForRoomPhase = (socket: ClientSocket, phase: PublicRoomState["phase"], timeoutMs = 1_000) =>
+  new Promise<PublicRoomState>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      socket.off(ServerEvents.RoomState, onState);
+      reject(new Error(`Timed out waiting for room phase ${phase}`));
+    }, timeoutMs);
+    const onState = (state: PublicRoomState) => {
+      if (state.phase !== phase) return;
+      clearTimeout(timer);
+      socket.off(ServerEvents.RoomState, onState);
+      resolve(state);
+    };
+    socket.on(ServerEvents.RoomState, onState);
+  });
+
 const waitForCondition = async (predicate: () => boolean, timeoutMs = 1_000) => {
   const startedAt = Date.now();
   while (Date.now() - startedAt < timeoutMs) {
@@ -73,7 +88,7 @@ describe("socket flow", () => {
   let saveImpl: (nextProgress: ProgressState) => Promise<void>;
   let agentRegistry: InMemoryAgentRegistry;
   let accountDir: string;
-  let accountStore: AccountStore;
+  let accountStore: AccountStore | undefined;
 
   const levels = loadLevels();
   const savedProgress: ProgressState[] = [];
@@ -231,7 +246,8 @@ describe("socket flow", () => {
     };
 
     accountDir = fs.mkdtempSync(path.join(os.tmpdir(), "tt-sock-accounts-"));
-    accountStore = createAccountStore(accountDir);
+    // 大部分游戏流测试走无持久账号的测试基建；账号协议在本文件末尾单独注入 schema v2 仓库。
+    accountStore = undefined;
 
     httpServer = http.createServer();
     io = new Server(httpServer);
@@ -577,7 +593,7 @@ describe("socket flow", () => {
       expect(room.phase).toBe("reveal");
 
       alice.emit(ClientEvents.GameContinueToResult);
-      await waitForEvent(alice, ServerEvents.RoomState);
+      await waitForCondition(() => room.phase === "result");
       expect(room.phase).toBe("result");
       expect(room.revealResult?.pass).toBe(true);
 
@@ -631,21 +647,28 @@ describe("socket flow", () => {
     expect(room.timer?.kind).toBe("turn");
   });
 
-  it("lets any seated player end the active game and resets only runtime room state", async () => {
+  it("lets any seated player end the active game and returns all occupants to the ready lobby", async () => {
     const { alice, bob } = await joinTwoPlayers();
     await readyAndEnterLevel(alice, bob);
     room.progress.clearedLevels = [1];
     room.settings.discussionMinutes = 10;
     room.progress.settings = room.settings;
 
-    const gameEndedPromise = waitForEvent(alice, ServerEvents.GameEnded);
-    const roomStatePromise = waitForEvent(alice, ServerEvents.RoomState);
+    let gameEndedCount = 0;
+    alice.on(ServerEvents.GameEnded, () => {
+      gameEndedCount += 1;
+    });
+    bob.on(ServerEvents.GameEnded, () => {
+      gameEndedCount += 1;
+    });
+    const aliceStatePromise = waitForRoomPhase(alice, "waiting");
+    const bobStatePromise = waitForRoomPhase(bob, "waiting");
     bob.emit(ClientEvents.GameEnd);
-    await gameEndedPromise;
-    await roomStatePromise;
+    const [aliceState, bobState] = await Promise.all([aliceStatePromise, bobStatePromise]);
 
     expect(room.phase).toBe("waiting");
-    expect(room.seats.every((seat) => !seat.nick && !seat.connected && !seat.socketId)).toBe(true);
+    expect(room.seats.find((seat) => seat.id === "A")).toMatchObject({ nick: "Alice", connected: true });
+    expect(room.seats.find((seat) => seat.id === "B")).toMatchObject({ nick: "Bob", connected: true });
     expect(room.ready).toEqual({});
     expect(room.host).toBeNull();
     expect(room.currentLevelIndex).toBeNull();
@@ -656,10 +679,14 @@ describe("socket flow", () => {
     expect(room.timers).toEqual({});
     expect(room.progress.clearedLevels).toEqual([1]);
     expect(room.settings.discussionMinutes).toBe(10);
+    expect(aliceState.phase).toBe("waiting");
+    expect(bobState.phase).toBe("waiting");
+    expect(gameEndedCount).toBe(0);
 
     alice.emit(ClientEvents.PlayerReady);
-    const error = await waitForEvent<{ code: string; message: string }>(alice, ServerEvents.RoomError);
-    expect(error.message).toBe("请先加入房间");
+    const readyState = await waitForEvent<PublicRoomState>(alice, ServerEvents.RoomState);
+    expect(readyState.ready.A).toBe(true);
+    expect(readyState.host).toBe("A");
   });
 
   it("rejects game end from an unseated socket", async () => {
@@ -773,7 +800,7 @@ describe("socket flow", () => {
     expect(savedProgress.some((entry) => entry.clearedLevels.includes(1))).toBe(false);
   });
 
-  it("a duplicate online nickname with a wrong account password is rejected and cannot take the seat", async () => {
+  it("无账号测试模式下，同昵称连接被拒且不能接管座位", async () => {
     // ADR-0006：同昵称在线时，只有正确的账号密码才视为本人；
     // 错误密码一律拒绝，原玩家的连接与座位不受任何影响。
     const { alice } = await joinTwoPlayers();
@@ -784,7 +811,7 @@ describe("socket flow", () => {
     duplicate.emit(ClientEvents.PlayerJoin, joinPayload("Alice", { accountPassword: "wrong-pass" }));
     const error = await waitForEvent<{ code: string; message: string }>(duplicate, ServerEvents.RoomError);
 
-    expect(error.code).toBe("ACCOUNT_PASSWORD_MISMATCH");
+    expect(error.code).toBe("NICK_IN_USE");
     expect(alice.connected).toBe(true);
     expect(aliceSeat.connected).toBe(true);
     expect(aliceSeat.socketId).toBe(originalSocketId);
@@ -974,6 +1001,7 @@ describe("socket flow", () => {
         await waitForEvent(alice, ServerEvents.RoomState);
         alice.emit(ClientEvents.HintDecide, { decision: "no" });
         await waitForEvent(alice, ServerEvents.RoomState);
+        await waitForCondition(() => room.placements.flat().length === (index + 1) * playerCount);
         expect(room.placements.flat()).toHaveLength((index + 1) * playerCount);
       }
 
@@ -983,10 +1011,66 @@ describe("socket flow", () => {
       expect(agentRegistry.size).toBe(agentCount);
 
       alice.emit(ClientEvents.GameContinueToResult);
-      await waitForEvent(alice, ServerEvents.RoomState);
+      await waitForCondition(() => room.phase === "result");
       expect(room.phase).toBe("result");
     });
   }
+
+  it("acknowledges a human hint decision before waiting for a slow agent turn", async () => {
+    const alice = await connectClient();
+    alice.emit(ClientEvents.PlayerJoin, joinPayload("Alice"));
+    await waitForEvent(alice, ServerEvents.RoomState);
+    alice.emit(ClientEvents.PlayerReady);
+    await waitForEvent(alice, ServerEvents.RoomState);
+    alice.emit(ClientEvents.HostAddAgent);
+    await waitForEvent(alice, ServerEvents.RoomState);
+
+    const agentSeat = room.seats.find((seat) => seat.kind === "agent" && seat.agentId);
+    if (!agentSeat?.agentId) throw new Error("Missing agent seat");
+    let releaseFirstDecision: (() => void) | undefined;
+    const firstDecisionGate = new Promise<void>((resolve) => {
+      releaseFirstDecision = resolve;
+    });
+    let firstDecision = true;
+    agentRegistry.register(agentSeat.agentId, {
+      async decidePlacement() {
+        if (firstDecision) {
+          firstDecision = false;
+          await firstDecisionGate;
+        }
+        const card = room.hands[agentSeat.id]?.[0];
+        if (!card) throw new Error("Agent has no card");
+        return { cardId: card.id, segment: 0 };
+      },
+      async decideHint() {
+        return "no";
+      }
+    });
+
+    alice.emit(ClientEvents.GameStart);
+    await waitForEvent(alice, ServerEvents.RoomState);
+    alice.emit(ClientEvents.HostSelectLevel, { levelIndex: 1 });
+    await waitForEvent(alice, ServerEvents.RoomState);
+    alice.emit(ClientEvents.GameBeginPlacement);
+    await waitForEvent(alice, ServerEvents.RoomState);
+
+    const humanCard = room.hands.A?.[0];
+    if (!humanCard) throw new Error("Human has no card");
+    alice.emit(ClientEvents.CardPlace, { cardId: humanCard.id, segment: 0 });
+    await waitForEvent(alice, ServerEvents.RoomState);
+    expect(room.pendingHint?.seatId).toBe("A");
+
+    const acknowledgement = waitForEvent<PublicRoomState>(alice, ServerEvents.RoomState);
+    alice.emit(ClientEvents.HintDecide, { decision: "no" });
+    const state = await acknowledgement;
+
+    expect(state.pendingHint).toBeNull();
+    expect(state.turn).toBe(agentSeat.id);
+    expect(room.placements.flat()).toHaveLength(1);
+
+    releaseFirstDecision?.();
+    await waitForCondition(() => room.placements.flat().length >= 2);
+  });
 
   it("completes a socket game with two humans and one scripted agent", async () => {
     const [alice, bob] = await joinPlayers(["Alice", "Bob"]);
@@ -1015,6 +1099,9 @@ describe("socket flow", () => {
       await waitForEvent(socket, ServerEvents.RoomState);
       socket.emit(ClientEvents.HintDecide, { decision: "no" });
       await waitForEvent(socket, ServerEvents.RoomState);
+      await waitForCondition(
+        () => room.phase !== "placing" || room.turn === "race" || room.turn === "A" || room.turn === "B"
+      );
       humanPlacements += 1;
     }
 
@@ -1082,12 +1169,26 @@ describe("socket flow", () => {
     }
   });
 
-  describe("玩家账号（ADR-0006）", () => {
-    it("首次昵称即注册，重进后 playerId 稳定", async () => {
+  describe("邮箱账号（ADR-0007）", () => {
+    const emailKey = Buffer.alloc(32, 9).toString("base64");
+    const registration = (overrides: Record<string, unknown> = {}) => ({
+      email: "alice@example.com",
+      password: "password-1",
+      passwordConfirmation: "password-1",
+      nickname: "小明",
+      roomPassword: config.roomPassword,
+      ...overrides
+    });
+
+    it("显式注册直接入座，离开后用邮箱登录并保持 playerId", async () => {
+      accountStore = createAccountStore(accountDir, emailKey);
       const first = await connectClient();
       const firstSessionPromise = waitForEvent<PlayerSessionPayload>(first, ServerEvents.PlayerSession);
-      first.emit(ClientEvents.PlayerJoin, joinPayload("小明"));
-      await waitForEvent(first, ServerEvents.RoomState);
+      const firstProfilePromise = waitForEvent(first, ServerEvents.AccountProfile);
+      const firstStatePromise = waitForEvent(first, ServerEvents.RoomState);
+      first.emit(ClientEvents.AccountRegister, registration());
+      await firstProfilePromise;
+      await firstStatePromise;
       const firstSession = await firstSessionPromise;
 
       first.emit(ClientEvents.PlayerLeave);
@@ -1096,93 +1197,160 @@ describe("socket flow", () => {
 
       const again = await connectClient();
       const againSessionPromise = waitForEvent<PlayerSessionPayload>(again, ServerEvents.PlayerSession);
-      again.emit(ClientEvents.PlayerJoin, joinPayload("小明"));
-      await waitForEvent(again, ServerEvents.RoomState);
-      const againSession = await againSessionPromise;
-
-      expect(againSession.playerId).toBe(firstSession.playerId);
+      const againProfilePromise = waitForEvent(again, ServerEvents.AccountProfile);
+      const againStatePromise = waitForEvent(again, ServerEvents.RoomState);
+      again.emit(ClientEvents.AccountLogin, {
+        email: "alice@EXAMPLE.COM",
+        password: "password-1",
+        roomPassword: config.roomPassword
+      });
+      await againProfilePromise;
+      await againStatePromise;
+      expect((await againSessionPromise).playerId).toBe(firstSession.playerId);
+      expect(room.seats.find((seat) => seat.nick === "小明")?.playerId).toBe(firstSession.playerId);
     });
 
-    it("正确账号密码可接管在线座位（先附着后断旧连接）", async () => {
-      const oldConn = await connectClient();
-      oldConn.emit(ClientEvents.PlayerJoin, joinPayload("小明"));
-      await waitForEvent(oldConn, ServerEvents.RoomState);
-      const seat = room.seats.find((candidate) => candidate.nick === "小明")!;
+    it("注册写盘期间房间状态变化时，明确返回账号已创建而不是留下未知结果", async () => {
+      const persistedStore = createAccountStore(accountDir, emailKey);
+      accountStore = {
+        ...persistedStore,
+        async register(input) {
+          const result = await persistedStore.register(input);
+          if (result.ok) room.phase = "discussion";
+          return result;
+        }
+      };
+      const player = await connectClient();
+      const profilePromise = waitForEvent<{ email: string }>(player, ServerEvents.AccountProfile);
+      const actionPromise = waitForEvent<{ action: string; success: boolean; message: string }>(
+        player,
+        ServerEvents.AccountActionResult
+      );
+      const errorPromise = waitForEvent<{ code: string; message: string }>(player, ServerEvents.RoomError);
 
-      const newConn = await connectClient();
-      const newSessionPromise = waitForEvent<PlayerSessionPayload>(newConn, ServerEvents.PlayerSession);
-      newConn.emit(ClientEvents.PlayerJoin, joinPayload("小明"));
-      await waitForEvent(newConn, ServerEvents.RoomState);
-      const newSession = await newSessionPromise;
+      player.emit(ClientEvents.AccountRegister, registration());
 
-      await waitForCondition(() => !oldConn.connected);
-      expect(newSession.seatId).toBe(seat.id);
-      expect(room.seats.filter((candidate) => candidate.nick === "小明")).toHaveLength(1);
-      expect(seat.connected).toBe(true);
+      expect(await profilePromise).toMatchObject({ email: "alice@example.com" });
+      expect(await actionPromise).toMatchObject({ action: "register", success: true });
+      expect(await errorPromise).toMatchObject({ code: "ACCOUNT_CREATED_ROOM_ENTRY_FAILED" });
+      expect(room.seats.every((seat) => !seat.nick)).toBe(true);
+      expect((await persistedStore.authenticate({ email: "alice@example.com", password: "password-1" })).ok).toBe(
+        true
+      );
     });
 
-    it("再次登录忽略新头像，沿用注册头像", async () => {
-      const dataUrl = "data:image/png;base64,aGk=";
-      const first = await connectClient();
-      first.emit(ClientEvents.PlayerJoin, joinPayload("小红", { avatar: dataUrl }));
-      await waitForEvent(first, ServerEvents.RoomState);
-      first.emit(ClientEvents.PlayerLeave);
-      await waitForCondition(() => room.seats.every((seat) => seat.nick !== "小红"));
-      first.disconnect();
-
-      const again = await connectClient();
-      again.emit(ClientEvents.PlayerJoin, joinPayload("小红", { avatar: "data:image/png;base64,Ynll" }));
-      await waitForEvent(again, ServerEvents.RoomState);
-
-      expect(room.seats.find((seat) => seat.nick === "小红")?.avatar).toBe(dataUrl);
-    });
-
-    it("房间密码错误时不触发隐式注册", async () => {
+    it("错误房间密码不创建账号，旧昵称隐式注册入口被拒绝", async () => {
+      accountStore = createAccountStore(accountDir, emailKey);
       const denied = await connectClient();
-      denied.emit(ClientEvents.PlayerJoin, joinPayload("新人", { password: "wrong-room" }));
-      const deniedError = await waitForEvent<{ code: string; message: string }>(denied, ServerEvents.RoomError);
-      expect(deniedError.code).toBe("INVALID_ROOM_PASSWORD");
+      denied.emit(ClientEvents.AccountRegister, registration({ roomPassword: "wrong-room" }));
+      expect((await waitForEvent<{ code: string }>(denied, ServerEvents.RoomError)).code).toBe(
+        "INVALID_ROOM_PASSWORD"
+      );
+      expect(fs.existsSync(path.join(accountDir, "accounts.json"))).toBe(false);
 
-      // 用正确房间密码 + 不同个人密码重来：若上一步误建了账号，这里会报 ACCOUNT_PASSWORD_MISMATCH
-      const joined = await connectClient();
-      joined.emit(ClientEvents.PlayerJoin, joinPayload("新人", { accountPassword: "another-pass" }));
-      await waitForEvent(joined, ServerEvents.RoomState);
-      expect(room.seats.some((seat) => seat.nick === "新人")).toBe(true);
+      const legacy = await connectClient();
+      legacy.emit(ClientEvents.PlayerJoin, joinPayload("旧入口"));
+      expect((await waitForEvent<{ code: string }>(legacy, ServerEvents.RoomError)).code).toBe(
+        "ACCOUNT_REGISTRATION_REQUIRED"
+      );
     });
 
-    it("同昵称连续 5 次密码失败触发 ACCOUNT_RATE_LIMITED", async () => {
+    it("改名原子更新座位；改密和换邮换发当前会话并撤销旧令牌", async () => {
+      accountStore = createAccountStore(accountDir, emailKey);
+      const player = await connectClient();
+      const initialSessionPromise = waitForEvent<PlayerSessionPayload>(player, ServerEvents.PlayerSession);
+      const initialStatePromise = waitForEvent(player, ServerEvents.RoomState);
+      player.emit(ClientEvents.AccountRegister, registration());
+      await initialStatePromise;
+      const initialSession = await initialSessionPromise;
+
+      const profileActionPromise = waitForEvent(player, ServerEvents.AccountActionResult);
+      const profileStatePromise = waitForEvent(player, ServerEvents.RoomState);
+      player.emit(ClientEvents.AccountProfileUpdate, { nickname: "新昵称" });
+      await profileActionPromise;
+      await profileStatePromise;
+      expect(room.seats.find((seat) => seat.playerId === initialSession.playerId)?.nick).toBe("新昵称");
+
+      const passwordSessionPromise = waitForEvent<PlayerSessionPayload>(player, ServerEvents.PlayerSession);
+      player.emit(ClientEvents.AccountPasswordChange, {
+        currentPassword: "password-1",
+        newPassword: "password-2",
+        newPasswordConfirmation: "password-2"
+      });
+      const passwordSession = await passwordSessionPromise;
+      expect(passwordSession.reconnectToken).not.toBe(initialSession.reconnectToken);
+
+      const stale = await connectClient();
+      const staleErrorPromise = waitForEvent<{ code: string }>(stale, ServerEvents.RoomError);
+      stale.emit(ClientEvents.PlayerJoin, {
+        nick: "新昵称",
+        session: { playerId: initialSession.playerId, reconnectToken: initialSession.reconnectToken }
+      });
+      expect((await staleErrorPromise).code).toBe(
+        "INVALID_PLAYER_SESSION"
+      );
+
+      const emailSessionPromise = waitForEvent<PlayerSessionPayload>(player, ServerEvents.PlayerSession);
+      player.emit(ClientEvents.AccountEmailChange, {
+        currentPassword: "password-2",
+        newEmail: "next@example.com"
+      });
+      const emailSession = await emailSessionPromise;
+      expect(emailSession.reconnectToken).not.toBe(passwordSession.reconnectToken);
+      expect(accountStore.getProfile(initialSession.playerId)?.email).toBe("next@example.com");
+    });
+
+    it("登录失败统一文案并在第六次触发限流", async () => {
+      accountStore = createAccountStore(accountDir, emailKey);
       const owner = await connectClient();
-      owner.emit(ClientEvents.PlayerJoin, joinPayload("小明"));
-      await waitForEvent(owner, ServerEvents.RoomState);
+      const ownerStatePromise = waitForEvent(owner, ServerEvents.RoomState);
+      owner.emit(ClientEvents.AccountRegister, registration());
+      await ownerStatePromise;
 
-      for (let i = 0; i < 5; i += 1) {
-        const intruder = await connectClient();
-        intruder.emit(ClientEvents.PlayerJoin, joinPayload("小明", { accountPassword: "bad-pass" }));
-        const error = await waitForEvent<{ code: string; message: string }>(intruder, ServerEvents.RoomError);
-        expect(error.code).toBe("ACCOUNT_PASSWORD_MISMATCH");
+      for (let index = 0; index < 5; index += 1) {
+        const attempt = await connectClient();
+        attempt.emit(ClientEvents.AccountLogin, {
+          email: "alice@example.com",
+          password: "wrong-password",
+          roomPassword: config.roomPassword
+        });
+        const error = await waitForEvent<{ code: string; message: string }>(attempt, ServerEvents.RoomError);
+        expect(error).toMatchObject({ code: "ACCOUNT_INVALID_CREDENTIALS", message: "邮箱或密码不正确" });
       }
-
-      const sixth = await connectClient();
-      sixth.emit(ClientEvents.PlayerJoin, joinPayload("小明", { accountPassword: "bad-pass" }));
-      const limited = await waitForEvent<{ code: string; message: string }>(sixth, ServerEvents.RoomError);
-      expect(limited.code).toBe("ACCOUNT_RATE_LIMITED");
+      const limited = await connectClient();
+      limited.emit(ClientEvents.AccountLogin, {
+        email: "alice@example.com",
+        password: "wrong-password",
+        roomPassword: config.roomPassword
+      });
+      expect((await waitForEvent<{ code: string }>(limited, ServerEvents.RoomError)).code).toBe(
+        "ACCOUNT_RATE_LIMITED"
+      );
     });
 
-    it("账户文件损坏时 fail-closed：新注册报 ACCOUNT_STORE_UNAVAILABLE", async () => {
-      const corruptedDir = fs.mkdtempSync(path.join(os.tmpdir(), "tt-sock-corrupt-"));
-      try {
-        fs.writeFileSync(path.join(corruptedDir, "accounts.json"), "{broken", "utf8");
-        // io.on("connection") 每次连接读取当前 accountStore 变量，替换后新连接走降级仓库
-        accountStore = createAccountStore(corruptedDir);
-
-        const blocked = await connectClient();
-        blocked.emit(ClientEvents.PlayerJoin, joinPayload("小明"));
-        const error = await waitForEvent<{ code: string; message: string }>(blocked, ServerEvents.RoomError);
-        expect(error.code).toBe("ACCOUNT_STORE_UNAVAILABLE");
-        expect(fs.readFileSync(path.join(corruptedDir, "accounts.json"), "utf8")).toBe("{broken");
-      } finally {
-        fs.rmSync(corruptedDir, { recursive: true, force: true });
+    it("不同邮箱不能绕过连接地址级登录总限流", async () => {
+      accountStore = createAccountStore(accountDir, emailKey);
+      for (let index = 0; index < 10; index += 1) {
+        const attempt = await connectClient();
+        attempt.emit(ClientEvents.AccountLogin, {
+          email: `missing-${index}@example.com`,
+          password: "wrong-password",
+          roomPassword: config.roomPassword
+        });
+        expect((await waitForEvent<{ code: string }>(attempt, ServerEvents.RoomError)).code).toBe(
+          "ACCOUNT_INVALID_CREDENTIALS"
+        );
       }
+
+      const limited = await connectClient();
+      limited.emit(ClientEvents.AccountLogin, {
+        email: "missing-final@example.com",
+        password: "wrong-password",
+        roomPassword: config.roomPassword
+      });
+      expect((await waitForEvent<{ code: string }>(limited, ServerEvents.RoomError)).code).toBe(
+        "ACCOUNT_RATE_LIMITED"
+      );
     });
   });
 });

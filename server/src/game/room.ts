@@ -1,5 +1,6 @@
 import type { Challenge, GameRoom, LevelSummary, PlayerCount, ProgressState, Seat, SeatId } from "@take-time/shared";
 import { defaultSettings } from "../config.js";
+import { createRoomIdentity, resetSessionIdentity } from "./identity.js";
 
 const seatIds: SeatId[] = ["A", "B", "C", "D"];
 
@@ -35,6 +36,7 @@ export const createGameRoom = (progress: ProgressState, levelsOrTotal: Challenge
 
   return {
     stateVersion: 0,
+    identity: createRoomIdentity(),
     capacity: settings.capacity,
     seats: createSeats(settings.capacity),
     ready: {},
@@ -63,7 +65,8 @@ export const createGameRoom = (progress: ProgressState, levelsOrTotal: Challenge
     timer: null,
     timers: {},
     revealResult: null,
-    failureReason: null
+    failureReason: null,
+    agentState: { seats: [], review: null }
   };
 };
 
@@ -85,6 +88,7 @@ export const resetRoundState = (room: GameRoom) => {
 };
 
 export const softResetRoom = (room: GameRoom) => {
+  resetSessionIdentity(room.identity);
   room.seats = createSeats(room.capacity);
   room.ready = {};
   room.host = null;
@@ -93,6 +97,7 @@ export const softResetRoom = (room: GameRoom) => {
   room.currentChallenge = null;
   room.chat = [];
   resetRoundState(room);
+  room.agentState = { seats: [], review: null };
 };
 
 export const occupiedSeats = (room: GameRoom) => room.seats.filter((seat) => Boolean(seat.nick));

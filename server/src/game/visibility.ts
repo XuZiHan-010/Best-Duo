@@ -49,7 +49,8 @@ export const publicRoomState = (room: GameRoom): PublicRoomState => ({
   chat: room.chat,
   timer: room.timer,
   revealResult: room.revealResult,
-  failureReason: room.failureReason
+  failureReason: room.failureReason,
+  agentState: structuredClone(room.agentState)
 });
 
 export const privateHandForSeat = (room: GameRoom, seatId: string): PublicHandCard[] =>

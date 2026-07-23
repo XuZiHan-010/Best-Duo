@@ -91,4 +91,12 @@ describe("PlayerSessionStore", () => {
     expect(store.findAdminPlayerId()).toBeNull();
     expect(store.isAdmin(admin.playerId)).toBe(false);
   });
+
+  it("账号会话必须匹配当前 credentialVersion", () => {
+    const cred = store.issue("A", { playerId: "account-1", credentialVersion: 3 });
+    expect(store.verify(cred.playerId, cred.reconnectToken, 3)).toBe("A");
+    expect(store.credentialVersionOf(cred.playerId)).toBe(3);
+    expect(store.verify(cred.playerId, cred.reconnectToken, 4)).toBeNull();
+    expect(store.seatOf(cred.playerId)).toBeNull();
+  });
 });

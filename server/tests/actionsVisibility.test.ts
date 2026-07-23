@@ -202,6 +202,155 @@ describe("actions and visibility", () => {
     expect(room.placements.flat().some((card) => card.owner === "C")).toBe(true);
     expect(room.pendingHint).toBeNull();
     expect(room.turn).toBe("A");
+    // Agent 回合开始一次，处理完其 hint 后切回真人再开始一次。
+    expect(startTurnTimer).toHaveBeenCalledTimes(2);
+  });
+  it("lets an agent win the opening race and cancels the other race contenders", async () => {
+    const room = makePlacingRoom(3);
+    const agentSeat = room.seats.find((seat) => seat.id === "C");
+    if (!agentSeat) throw new Error("Missing agent seat");
+    agentSeat.kind = "agent";
+    agentSeat.agentId = "agent-c";
+
+    const agentRegistry = new InMemoryAgentRegistry();
+    agentRegistry.register("agent-c", createScriptedAgent());
+    const afterRevealIfNeeded = vi.fn().mockResolvedValue(undefined);
+    const startTurnTimer = vi.fn();
+    const onRaceWinner = vi.fn();
+
+    await continueTurnOrHandoff(room, {
+      afterRevealIfNeeded,
+      startTurnTimer,
+      agentRegistry,
+      onRaceWinner,
+      raceDelay: async () => undefined
+    });
+
+    expect(room.placements.flat()).toHaveLength(1);
+    expect(room.placements.flat()[0]?.owner).toBe("C");
+    expect(room.pendingHint).toBeNull();
+    expect(room.turn).toBe("A");
+    expect(onRaceWinner).toHaveBeenCalledWith("C");
+    expect(startTurnTimer).toHaveBeenCalledTimes(2);
+  });
+  it("does not start a delayed race loser's decision after another agent has already won", async () => {
+    const room = makePlacingRoom(4);
+    const registry = new InMemoryAgentRegistry();
+    let releaseDelayedLoser!: () => void;
+    const delayedLoser = new Promise<void>((resolve) => {
+      releaseDelayedLoser = resolve;
+    });
+    const decideC = vi.fn(async () => ({ cardId: room.hands.C![0].id, segment: 1 }));
+    const decideD = vi.fn(async () => ({ cardId: room.hands.D![0].id, segment: 2 }));
+
+    for (const seatId of ["C", "D"] as const) {
+      const seat = room.seats.find((candidate) => candidate.id === seatId)!;
+      seat.kind = "agent";
+      seat.agentId = `agent-${seatId.toLowerCase()}`;
+      registry.register(seat.agentId, {
+        decidePlacement: seatId === "C" ? decideC : decideD,
+        async decideHint() {
+          return "no";
+        },
+        async decideDiscussion() {
+          return null;
+        }
+      });
+    }
+
+    await continueTurnOrHandoff(room, {
+      afterRevealIfNeeded: async () => {},
+      startTurnTimer: () => {},
+      agentRegistry: registry,
+      raceDelay: async (seatId) => {
+        if (seatId === "C") await delayedLoser;
+      }
+    });
+
+    expect(decideD).toHaveBeenCalledTimes(1);
+    expect(room.placements.flat()).toHaveLength(1);
+    expect(room.placements.flat()[0]?.owner).toBe("D");
+
+    releaseDelayedLoser();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(decideC).not.toHaveBeenCalled();
+  });
+  it("coalesces duplicate handoff triggers while an agent decision is in flight", async () => {
+    const room = makePlacingRoom(3);
+    const agentSeat = room.seats.find((seat) => seat.id === "C");
+    if (!agentSeat) throw new Error("Missing agent seat");
+    agentSeat.kind = "agent";
+    agentSeat.agentId = "agent-c";
+    room.turn = "C";
+
+    let releaseDecision!: (decision: { cardId: string; segment: number }) => void;
+    const decidePlacement = vi.fn(
+      () => new Promise<{ cardId: string; segment: number }>((resolve) => (releaseDecision = resolve))
+    );
+    const agentRegistry = new InMemoryAgentRegistry();
+    agentRegistry.register("agent-c", {
+      decidePlacement,
+      async decideHint() {
+        return "no";
+      },
+      async decideDiscussion() {
+        return null;
+      }
+    });
+    const afterRevealIfNeeded = vi.fn().mockResolvedValue(undefined);
+    const startTurnTimer = vi.fn();
+    const options = { afterRevealIfNeeded, startTurnTimer, agentRegistry };
+
+    const first = continueTurnOrHandoff(room, options);
+    const duplicate = continueTurnOrHandoff(room, options);
+    expect(duplicate).toBe(first);
+    await vi.waitFor(() => expect(decidePlacement).toHaveBeenCalledTimes(1));
+
+    releaseDecision({ cardId: room.hands.C![0].id, segment: 2 });
+    await first;
+
+    expect(decidePlacement).toHaveBeenCalledTimes(1);
+    expect(room.placements.flat()).toHaveLength(1);
+    expect(startTurnTimer).toHaveBeenCalledTimes(2);
+  });
+  it("silently drops a race decision when a human places first", async () => {
+    const room = makePlacingRoom(3);
+    const agentSeat = room.seats.find((seat) => seat.id === "C");
+    if (!agentSeat) throw new Error("Missing agent seat");
+    agentSeat.kind = "agent";
+    agentSeat.agentId = "agent-c";
+
+    let releaseDecision!: (decision: { cardId: string; segment: number }) => void;
+    const decidePlacement = vi.fn(
+      () => new Promise<{ cardId: string; segment: number }>((resolve) => (releaseDecision = resolve))
+    );
+    const agentRegistry = new InMemoryAgentRegistry();
+    agentRegistry.register("agent-c", {
+      decidePlacement,
+      async decideHint() {
+        return "no";
+      },
+      async decideDiscussion() {
+        return null;
+      }
+    });
+    const startTurnTimer = vi.fn();
+    const handoff = continueTurnOrHandoff(room, {
+      afterRevealIfNeeded: vi.fn().mockResolvedValue(undefined),
+      startTurnTimer,
+      agentRegistry,
+      raceDelay: async () => undefined
+    });
+    await vi.waitFor(() => expect(decidePlacement).toHaveBeenCalledTimes(1));
+
+    const agentCardId = room.hands.C![0].id;
+    applyPlacement(room, "A", { cardId: room.hands.A![0].id, segment: 0 });
+    releaseDecision({ cardId: agentCardId, segment: 1 });
+    await handoff;
+
+    expect(room.placements.flat()).toHaveLength(1);
+    expect(room.placements.flat()[0]?.owner).toBe("A");
+    expect(room.pendingHint?.seatId).toBe("A");
     expect(startTurnTimer).toHaveBeenCalledTimes(1);
   });
   it("does not randomly hand off a disconnected player's turn", async () => {

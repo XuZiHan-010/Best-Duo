@@ -1,0 +1,49 @@
+{
+  "suiteVersion": "m9.3-real-provider-v1",
+  "date": "2026-07-22",
+  "repeats": 30,
+  "totalCases": 150,
+  "summary": {
+    "ok": 149,
+    "illegalOutput": 1,
+    "providerErrors": 0,
+    "deadlineMisses": 0,
+    "fallbacks": 1,
+    "illegalOutputRate": 0.006666666666666667,
+    "fallbackRate": 0.006666666666666667,
+    "latencyMs": { "p50": 4996, "p95": 12716, "p99": 16900 },
+    "tokens": { "input": 309810, "output": 51035, "total": 360845 }
+  },
+  "turnTopK": {
+    "samples": 30,
+    "valid": 30,
+    "illegalOutput": 0,
+    "deadlineMisses": 0,
+    "fallbacks": 0,
+    "latencyMs": { "p50": 1516, "p95": 2748, "p99": 3956 },
+    "tokens": { "input": 46470, "output": 1290, "total": 47760 },
+    "pass": true
+  },
+  "discussion": {
+    "samples": 90,
+    "valid": 90,
+    "deadlineMisses": 0,
+    "fallbacks": 0,
+    "latencyMs": { "p50": 6677, "p95": 13611, "p99": 29746 },
+    "pass": true
+  },
+  "retryBrief": {
+    "samples": 30,
+    "valid": 29,
+    "illegalOutput": 1,
+    "deadlineMisses": 0,
+    "fallbackRate": 0.03333333333333333,
+    "latencyMs": { "p50": 4996, "p95": 10106, "p99": 13787 },
+    "pass": true
+  },
+  "releaseDecision": {
+    "modelTopKSelectorContract": "pass",
+    "candidateQualityGate": "separate deterministic suite; not overridden by this report",
+    "note": "运行环境打印 NODE_TLS_REJECT_UNAUTHORIZED=0 警告；生产部署前必须恢复 TLS 证书校验。"
+  }
+}

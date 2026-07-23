@@ -13,6 +13,8 @@ export interface Seat {
   nick: string | null;
   avatar?: string | null;
   agentId?: string;
+  /** 服务端内部账号主键；PublicSeat 白名单不会下发。 */
+  playerId?: string;
   connected: boolean;
   socketId?: string;
   holdUntil?: number;
@@ -30,7 +32,7 @@ export interface PublicSeat {
 
 export interface RoomSettings {
   discussionMinutes: 5 | 10 | 15 | 20;
-  thinkSeconds: 5 | 10 | 15 | 20 | 30;
+  thinkSeconds: 10 | 15 | 20 | 25 | 30;
   hintMarkerCount: 2 | 3 | 4;
   capacity: PlayerCount;
 }
@@ -122,6 +124,59 @@ export interface RoomIdentity {
   attemptId: string | null;
 }
 
+export type PublicAgentRuleStrength = "hard_commitment" | "strong_preference" | "suggestion" | "unresolved";
+
+export interface PublicAgentStrategyRule {
+  id: string;
+  type: string;
+  strength: PublicAgentRuleStrength;
+  targetSeatIds: SeatId[];
+  targetSegments?: number[];
+}
+
+export interface PublicAgentDecision {
+  source: "model" | "candidate" | "fallback";
+  fallbackReason?: string;
+  appliedStrategyRuleIds: string[];
+  relaxedStrategyRuleIds: string[];
+  at: number;
+}
+
+export interface PublicAgentSeatState {
+  seatId: SeatId;
+  strategyVersion: number;
+  // 策略来源可观察：model=模型收口成功；public_facts_fallback=收口失败后
+  // 由公开讨论事实确定性派生；unavailable=收口失败且无可派生事实。
+  strategySource?: "model" | "public_facts_fallback" | "unavailable";
+  strategyRules: PublicAgentStrategyRule[];
+  lastDecision?: PublicAgentDecision;
+}
+
+export interface PublicAgentReview {
+  sourceAttemptId: string;
+  passedSegments: number[];
+  failedSegments: number[];
+  lessons: string[];
+  unresolvedIssues: string[];
+  contractOutcomes?: Array<{
+    ruleId: string;
+    status: "fulfilled" | "impossible" | "relaxed";
+    reason: string;
+  }>;
+}
+
+export interface PublicAgentState {
+  seats: PublicAgentSeatState[];
+  review: PublicAgentReview | null;
+  contract?: {
+    revision: number;
+    rules: PublicAgentStrategyRule[];
+  };
+  // discussion → placing 转换期间为 true：服务端正在收口 Agent 策略。
+  // 前端据此显示“正在整理讨论策略…”，状态唯一来源是服务端（多标签页/重连一致）。
+  strategyFinalizing?: boolean;
+}
+
 export interface GameRoom {
   stateVersion: number;
   identity: RoomIdentity;
@@ -148,6 +203,8 @@ export interface GameRoom {
   timers: TimerHandles;
   revealResult: RevealResult | null;
   failureReason: FailureReason;
+  /** 只含公开讨论可追溯策略和决策来源，不含私有计划、belief 或手牌。 */
+  agentState: PublicAgentState;
 }
 
 export interface PublicRoomState {
@@ -170,6 +227,7 @@ export interface PublicRoomState {
   timer: TimerState | null;
   revealResult: RevealResult | null;
   failureReason: FailureReason;
+  agentState: PublicAgentState;
 }
 
 export const handSizeForPlayerCount = (playerCount: PlayerCount): number => {

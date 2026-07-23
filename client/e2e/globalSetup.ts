@@ -1,7 +1,6 @@
-import { once } from "node:events";
-import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -30,13 +29,14 @@ const waitForServer = async (child: ReturnType<typeof spawn>) => {
 };
 
 export default async function globalSetup() {
-  // Respect an explicitly managed local server, but only own and stop the
-  // child process created by this setup.
+  // Respect an explicitly managed local server; only stop the process created
+  // by this setup.
   if (await isServerReady()) return;
 
-  // 账号库跨 E2E 运行会残留（同昵称换密码 → ACCOUNT_PASSWORD_MISMATCH），
-  // 自管服务器时每次启动前清空，保证登录场景确定性。
-  fs.rmSync(path.join(rootDir, ".tmp-e2e-data", "accounts.json"), { force: true });
+  // Account state persists across runs, so clear only the isolated E2E copies.
+  for (const file of ["accounts.json", "accounts.json.bak", "account-admin-audit.jsonl"]) {
+    fs.rmSync(path.join(rootDir, ".tmp-e2e-data", file), { force: true });
+  }
 
   const child = spawn(process.execPath, [path.join(rootDir, "server/dist/index.js")], {
     cwd: rootDir,
@@ -49,9 +49,8 @@ export default async function globalSetup() {
       SEAT_HOLD_MS: "3000",
       ADMIN_USERNAME: "admin",
       ADMIN_PASSWORD: "e2e-admin-secret",
-      // E2E 必须是确定性的：置空模型 key，Agent 走 scripted/启发式路径。
-      // env.ts 不覆盖已存在的环境变量，空字符串即可屏蔽根目录 .env 的真实 key；
-      // 真实模型联调走 server/scripts/runProviderContract.ts，不进 E2E。
+      ACCOUNT_EMAIL_KEY: "1111111111111111111111111111111111111111111111111111111111111111",
+      // Keep E2E deterministic; real-provider checks use the dedicated harness.
       OPENAI_API_KEY: "",
       DEEPSEEK_API_KEY: "",
     },
@@ -66,16 +65,12 @@ export default async function globalSetup() {
     throw error;
   }
 
-  return async () => {
-    if (child.exitCode !== null) return;
-    child.kill("SIGTERM");
-    await Promise.race([
-      once(child, "exit"),
-      new Promise((resolve) => setTimeout(resolve, 5_000)),
-    ]);
-    if (child.exitCode === null) {
-      child.kill("SIGKILL");
-      await once(child, "exit");
-    }
-  };
+  // A teardown function returned from globalSetup made Playwright 1.47 report
+  // failed runs with exit status 0 on Windows. Unref the owned child so it does
+  // not hold the runner open, then synchronously signal it during process exit;
+  // this preserves Playwright's own success/failure exit code.
+  child.unref();
+  process.once("exit", () => {
+    if (child.exitCode === null) child.kill("SIGTERM");
+  });
 }

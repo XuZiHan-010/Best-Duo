@@ -1,5 +1,6 @@
 import type { GameRoom } from "@take-time/shared";
 import { evaluateConditions } from "../levels/conditionEngine.js";
+import { closeLevelRun } from "./identity.js";
 
 export const revealAndScore = (room: GameRoom) => {
   if (!room.currentChallenge) throw new Error("No challenge selected");
@@ -13,6 +14,7 @@ export const revealAndScore = (room: GameRoom) => {
 
   room.revealResult = evaluateConditions(room.placements, room.currentChallenge.conditions);
   room.failureReason = room.revealResult.pass ? null : "rule-unmet";
+  if (room.revealResult.pass) closeLevelRun(room.identity);
 };
 
 export const enterResultAfterReveal = (room: GameRoom) => {

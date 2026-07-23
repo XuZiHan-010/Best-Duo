@@ -17,7 +17,7 @@ import { createAccountStore } from "./auth/accountStore.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const progressStore = createProgressStore(config.dataDir);
-const accountStore = createAccountStore(config.dataDir);
+const accountStore = createAccountStore(config.dataDir, config.accountEmailKey);
 const levels = loadLevels();
 const room = createGameRoom(progressStore.load(), levels);
 const agentRegistry = new InMemoryAgentRegistry();
@@ -59,6 +59,14 @@ server.listen(config.port, config.host, () => {
       JSON.stringify({
         event: "admin:disabled",
         message: "未配置 ADMIN_USERNAME/ADMIN_PASSWORD（或与 ROOM_PASSWORD 相同），管理员登录已禁用"
+      })
+    );
+  }
+  if (!accountStore.isAvailable()) {
+    console.warn(
+      JSON.stringify({
+        event: "accounts:disabled",
+        message: "账号仓库不可用；请配置 32 字节 ACCOUNT_EMAIL_KEY，并确认 accounts.json 为 schema v2"
       })
     );
   }
