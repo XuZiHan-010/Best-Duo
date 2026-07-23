@@ -1,0 +1,33 @@
+{
+  "suiteVersion": "m9.3-frozen-v1",
+  "frozenAt": "2026-07-22",
+  "fixtures": { "levels": ["level-01", "level-04", "level-08"], "players": [2, 3, 4], "seedsPerLevel": 60, "pairs": 180 },
+  "candidateQuality": {
+    "baselineRate": 0.08333333333333333,
+    "candidateRate": 0,
+    "difference": -0.08333333333333333,
+    "ci95": [-0.12382304204411013, -0.04284362462255653],
+    "pass": false,
+    "requiredLowerBound": 0.1
+  },
+  "coordinationAdherence": {
+    "baselineRate": 0.2388888888888889,
+    "candidateRate": 1,
+    "difference": 0.7611111111111111,
+    "ci95": [0.6986439798132381, 0.823578242408984],
+    "pass": true
+  },
+  "samplingValue": {
+    "baselineRate": 0,
+    "candidateRate": 0.022222222222222223,
+    "difference": 0.022222222222222223,
+    "ci95": [0.0006277109098079131, 0.04381673353463653],
+    "pass": true
+  },
+  "releaseDecision": {
+    "candidateEngineDefault": false,
+    "hiddenSamplingDefault": false,
+    "modelTopKSelectorDefault": false,
+    "reason": "候选质量门槛未通过；协调遵守和采样增益通过，但不足以抵消纯候选相对 safePolicy 的回退。"
+  }
+}

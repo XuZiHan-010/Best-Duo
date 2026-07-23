@@ -7,7 +7,7 @@
     "build": "tsc -p tsconfig.json && vite build",
     "dev": "vite --host 0.0.0.0",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test:e2e": "playwright test"
+    "test:e2e": "npm --prefix .. run build && playwright test"
   },
   "dependencies": {
     "@take-time/shared": "0.1.0",

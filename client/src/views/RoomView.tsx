@@ -1,6 +1,7 @@
 import React from "react";
 import { useRoomStore } from "../store/useRoomStore.js";
 import { TopBar } from "../components/TopBar.js";
+import { KickedNotice } from "../components/KickedNotice.js";
 import { Login } from "./Login.js";
 import { Lobby } from "./Lobby.js";
 import { LevelSelect } from "./LevelSelect.js";
@@ -31,7 +32,16 @@ export function RoomView() {
   const clearError = useRoomStore((s) => s.clearError);
   // Login 页面自己处理 join 错误的内联展示，避免双重显示（Bug 5）
   const myNick     = useRoomStore((s) => s.myNick);
+  const kickNotice = useRoomStore((s) => s.kickNotice);
   const showToast  = lastError !== null && myNick !== null;
+
+  React.useEffect(() => {
+    if (myNick && window.location.pathname === "/account/register") {
+      window.history.replaceState({}, "", "/");
+    }
+  }, [myNick]);
+
+  if (kickNotice) return <KickedNotice reason={kickNotice} />;
 
   return (
     <div className="room-view">

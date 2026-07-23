@@ -1,0 +1,77 @@
+{
+  "suiteVersion": "m9.3-reasonable-v3-independent",
+  "frozenAt": "2026-07-23",
+  "candidateQuality": {
+    "samples": 180,
+    "baselineRate": 0.08333333333333333,
+    "candidateRate": 0.011111111111111112,
+    "difference": -0.07222222222222222,
+    "ci95": [-0.11598260343073914, -0.02846184101370529],
+    "pass": false,
+    "requiredLowerBound": 0.1,
+    "referenceOnly": true
+  },
+  "coordinationAdherence": {
+    "samples": 180,
+    "baselineRate": 0.2222222222222222,
+    "candidateRate": 1,
+    "difference": 0.7777777777777778,
+    "ci95": [0.7168730418842053, 0.8386825136713503],
+    "pass": true,
+    "requiredLowerBound": 0
+  },
+  "samplingValue": {
+    "samples": 180,
+    "baselineRate": 0.011111111111111112,
+    "candidateRate": 0.022222222222222223,
+    "difference": 0.011111111111111112,
+    "ci95": [-0.015585933452412893, 0.037808155674635115],
+    "pass": false,
+    "requiredLowerBound": 0,
+    "referenceOnly": true
+  },
+  "reasonablePlacement": {
+    "samples": 2160,
+    "rate": 1,
+    "requiredRate": 1,
+    "pass": true
+  },
+  "hintReasonableness": {
+    "samples": 2160,
+    "rate": 1,
+    "requiredRate": 1,
+    "pass": true
+  },
+  "beliefConsistency": {
+    "samples": 13108,
+    "rate": 1,
+    "requiredRate": 1,
+    "pass": true
+  },
+  "releaseGatePass": true,
+  "byLevel": {
+    "level-01": {
+      "samples": 60,
+      "baselineRate": 0.18333333333333332,
+      "candidateRate": 0.016666666666666666,
+      "difference": -0.16666666666666666,
+      "ci95": [-0.2725614728715397, -0.06077186046179363]
+    },
+    "level-04": {
+      "samples": 60,
+      "baselineRate": 0.03333333333333333,
+      "candidateRate": 0.016666666666666666,
+      "difference": -0.016666666666666666,
+      "ci95": [-0.07356575797168755, 0.040232424638354206]
+    },
+    "level-08": {
+      "samples": 60,
+      "baselineRate": 0.03333333333333333,
+      "candidateRate": 0,
+      "difference": -0.03333333333333333,
+      "ci95": [-0.0791377977906158, 0.012471131123949146]
+    }
+  },
+  "modelSelectorEvaluated": false,
+  "modelSelectorDefault": "disabled"
+}

@@ -2,8 +2,11 @@ import { handSizeForPlayerCount, type PlayerCount, type SeatId } from "@take-tim
 import type { RoomStore } from "./useRoomStore.js";
 
 export function mySeatSelector(store: RoomStore) {
-  const { roomState, myNick } = store;
-  if (!roomState || !myNick) return null;
+  const { roomState, myNick, mySeatId } = store;
+  if (!roomState) return null;
+  // 服务端确认的 seatId 是权威归属；昵称匹配仅作为登录乐观期的回退。
+  if (mySeatId) return roomState.seats.find((s) => s.id === mySeatId) ?? null;
+  if (!myNick) return null;
   return roomState.seats.find((s) => s.nick === myNick) ?? null;
 }
 

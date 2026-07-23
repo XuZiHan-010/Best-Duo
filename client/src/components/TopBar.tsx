@@ -28,6 +28,7 @@ export function TopBar() {
   const timer      = useRoomStore((s) => s.timer);
   const mySeatId   = useRoomStore(mySeatIdSelector);
   const hintLeft   = useRoomStore(hintLeftSelector);
+  const profile    = useRoomStore((s) => s.accountProfile);
 
   const [remaining, setRemaining] = React.useState<number | null>(null);
   const [confirmingEnd, setConfirmingEnd] = React.useState(false);
@@ -96,10 +97,17 @@ export function TopBar() {
         </span>
       )}
 
+      {profile && (
+        <a className="topbar__account" href="/account/security" aria-label="账户与安全设置">
+          <span>{profile.nickname.slice(0, 1).toUpperCase()}</span>
+          <em>账户</em>
+        </a>
+      )}
+
       {phase && GAME_FLOW_PHASES.has(phase) && (
         confirmingEnd ? (
           <span className="topbar__end-confirm">
-            <span className="topbar__end-confirm-text">确认结束游戏？</span>
+            <span className="topbar__end-confirm-text">结束本局并返回准备房间？</span>
             <button
               className="btn btn--danger topbar__end-btn"
               onClick={() => { adapter.endGame(); setConfirmingEnd(false); }}

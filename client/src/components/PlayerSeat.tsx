@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { SeatId, SeatKind } from "@take-time/shared";
 import { Button } from "./Button.js";
 import { Avatar } from "./Avatar.js";
@@ -13,10 +14,12 @@ interface PlayerSeatProps {
   disabled?: boolean;
   canAddAgent?: boolean;
   canRemoveAgent?: boolean;
+  canKick?: boolean;
   onReady?: () => void;
   onCancelReady?: () => void;
   onAddAgent?: () => void;
   onRemoveAgent?: () => void;
+  onKick?: () => void;
 }
 
 export function PlayerSeat({
@@ -30,13 +33,17 @@ export function PlayerSeat({
   disabled = false,
   canAddAgent = false,
   canRemoveAgent = false,
+  canKick = false,
   onReady,
   onCancelReady,
   onAddAgent,
   onRemoveAgent,
+  onKick,
 }: PlayerSeatProps) {
   const isEmpty = nick === null;
   const isAgent = kind === "agent" && !isEmpty;
+  // 请出需要二次确认（仿 TopBar 结束游戏的内联确认模式）
+  const [confirmingKick, setConfirmingKick] = useState(false);
 
   return (
     <div
@@ -88,6 +95,43 @@ export function PlayerSeat({
         <p className="player-seat__status">
           {isReady ? "已准备" : "等待准备..."}
         </p>
+      )}
+
+      {canKick && !isMe && !isEmpty && !isAgent && (
+        <div className="player-seat__actions">
+          {confirmingKick ? (
+            <>
+              <Button
+                variant="danger"
+                onClick={() => {
+                  setConfirmingKick(false);
+                  onKick?.();
+                }}
+                disabled={disabled}
+                className="player-seat__btn"
+              >
+                确认请出
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => setConfirmingKick(false)}
+                disabled={disabled}
+                className="player-seat__btn"
+              >
+                取消
+              </Button>
+            </>
+          ) : (
+            <Button
+              variant="danger"
+              onClick={() => setConfirmingKick(true)}
+              disabled={disabled}
+              className="player-seat__btn"
+            >
+              请出
+            </Button>
+          )}
+        </div>
       )}
 
       {isAgent && (

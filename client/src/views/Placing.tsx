@@ -19,6 +19,7 @@ import { CountdownTimer } from "../components/CountdownTimer.js";
 import { HandRail } from "../components/HandRail.js";
 import { HintPrompt } from "../components/HintPrompt.js";
 import { RulesPanel } from "../components/RulesPanel.js";
+import { AgentPublicSummary, agentStateForSeat } from "../components/AgentPublicSummary.js";
 
 export function Placing() {
   const roomState = useRoomStore((s) => s.roomState);
@@ -227,6 +228,7 @@ export function Placing() {
                           "等待中..."
                         )}
                       </span>
+                      {teammate.kind === "agent" && <AgentPublicSummary state={agentStateForSeat(roomState.agentState.seats, teammate.id)} compact />}
                     </div>
                   </div>
                 );

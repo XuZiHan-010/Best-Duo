@@ -1,6 +1,6 @@
 # ADR-0001：实时状态留在内存，持久数据迁移到 PostgreSQL
 
-- 状态：Accepted for interview build
+- 状态：Accepted for interview build；`RetryBrief` / `LevelRunMemory` 持久化边界由 [ADR-0004](0004-agent-memory-scopes-and-seat-strategy.md) 补充
 - 日期：2026-07-13
 
 ## 决策

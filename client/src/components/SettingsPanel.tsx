@@ -15,10 +15,10 @@ const DISCUSSION_OPTIONS = [
 ];
 
 const THINK_OPTIONS = [
-  { value: 5 as const, label: "5 秒" },
   { value: 10 as const, label: "10 秒" },
   { value: 15 as const, label: "15 秒" },
   { value: 20 as const, label: "20 秒" },
+  { value: 25 as const, label: "25 秒" },
   { value: 30 as const, label: "30 秒" },
 ];
 

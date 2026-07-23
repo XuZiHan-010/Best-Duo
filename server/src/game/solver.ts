@@ -18,6 +18,14 @@ interface SolverState {
 export interface SolveResult {
   solvable: boolean;
   assignments?: number[];
+  // 隐藏信息采样使用确定性的搜索节点预算；耗尽时显式标记，调用方不得
+  // 把“预算耗尽”误当成一个确定的不可解结论。
+  budgetExceeded?: boolean;
+}
+
+export interface FixedCardPlacement {
+  cardId: string;
+  segment: number;
 }
 
 const segments = [0, 1, 2, 3, 4, 5];
@@ -637,4 +645,81 @@ export const canSolveDeal = (challenge: Challenge, cards: SolverCard[], seatIds:
   };
 
   return search(0) ? { solvable: true, assignments: [...state.assignments] } : { solvable: false };
+};
+
+// 隐藏信息候选评估专用：输入必须是“采样出的可能世界”，并可固定已经公开落下的牌
+// 以及本次候选动作。它不接收 GameRoom，也不读取真实隐藏牌。
+export const canCompleteSampledDeal = (
+  challenge: Challenge,
+  cards: SolverCard[],
+  seatIds: SeatId[],
+  fixedPlacements: FixedCardPlacement[],
+  options: { maxNodes?: number } = {}
+): SolveResult => {
+  const fixedById = new Map(fixedPlacements.map((placement) => [placement.cardId, placement.segment]));
+  if (
+    fixedById.size !== fixedPlacements.length ||
+    fixedPlacements.some((placement) => placement.segment < 0 || placement.segment > 5) ||
+    fixedPlacements.some((placement) => !cards.some((card) => card.id === placement.cardId))
+  ) {
+    return { solvable: false };
+  }
+
+  const state = createState(seatIds);
+  const conditions = challenge.conditions;
+  for (const placement of fixedPlacements) {
+    const card = cards.find((candidate) => candidate.id === placement.cardId)!;
+    addCard(state, card, placement.segment);
+  }
+  if (conditions.some((condition) => violatesUpperBounds(state, condition))) return { solvable: false };
+
+  const remaining = cards
+    .filter((card) => !fixedById.has(card.id))
+    .sort((left, right) => right.value - left.value);
+  const segmentOrder = conditions.some(isFullNonDecreasingRule) ? [5, 4, 3, 2, 1, 0] : getTargetSegments(conditions);
+  const failed = new Set<string>();
+  const maxNodes =
+    options.maxNodes === undefined
+      ? Number.POSITIVE_INFINITY
+      : Math.max(1, Math.floor(options.maxNodes));
+  let visitedNodes = 0;
+  let budgetExceeded = false;
+  const memoKey = (index: number) =>
+    [
+      index,
+      state.sums.join(","),
+      state.counts.join(","),
+      state.blackCounts.join(","),
+      state.whiteCounts.join(","),
+      seatIds.map((seatId) => state.ownerSegmentCounts[seatId].join(",")).join("|"),
+      state.valueSets.map((values) => [...values].sort((a, b) => a - b).join(",")).join("|")
+    ].join(";");
+
+  const search = (index: number): boolean => {
+    visitedNodes += 1;
+    if (visitedNodes > maxNodes) {
+      budgetExceeded = true;
+      return false;
+    }
+    if (index === remaining.length) return passesFinalConditions(state, conditions, seatIds);
+    const key = memoKey(index);
+    if (failed.has(key)) return false;
+    const card = remaining[index]!;
+    for (const segment of segmentOrder) {
+      if (budgetExceeded) return false;
+      const hadValueBefore = state.valueSets[segment]!.has(card.value);
+      addCard(state, card, segment);
+      const violates = conditions.some((condition) => violatesUpperBounds(state, condition));
+      const impossible = !conditions.every((condition) =>
+        hasRequiredFutureCards(state, condition, remaining, index + 1)
+      );
+      if (!violates && !impossible && search(index + 1)) return true;
+      removeCard(state, card, segment, hadValueBefore);
+    }
+    failed.add(key);
+    return false;
+  };
+
+  const solvable = search(0);
+  return { solvable, ...(budgetExceeded ? { budgetExceeded: true } : {}) };
 };

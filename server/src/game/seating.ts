@@ -28,9 +28,6 @@ export const attachSeat = (room: GameRoom, seat: Seat, socketId: string, nick: s
   seat.holdUntil = undefined;
 };
 
-export const findReconnectSeat = (room: GameRoom, nick: string) =>
-  room.seats.find((seat) => seat.nick === nick && !seat.connected && (!seat.holdUntil || seat.holdUntil > Date.now()));
-
 export const findEmptySeat = (room: GameRoom) => room.seats.find((seat) => !seat.nick);
 
 export const transferHostToConnectedSeat = (room: GameRoom, leavingSeatId: SeatId) => {
@@ -44,6 +41,7 @@ export const releaseSeat = (room: GameRoom, seat: Seat) => {
   seat.avatar = null;
   seat.kind = "human";
   seat.agentId = undefined;
+  seat.playerId = undefined;
   seat.connected = false;
   seat.socketId = undefined;
   room.ready[seat.id] = false;

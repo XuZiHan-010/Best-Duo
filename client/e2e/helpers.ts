@@ -40,16 +40,71 @@ export async function resetRoom(): Promise<void> {
   }
 }
 
-export async function join(page: Page, nick: string) {
+// 所有 E2E 账号共用一个满足 schema v2 最低长度的个人密码；邮箱由昵称稳定派生，
+// 账号库在整次 E2E 运行内持久，因此 helper 会先注册，遇到已注册邮箱再走登录。
+export const E2E_ACCOUNT_PASSWORD = "e2e-password";
+
+export const accountEmailFor = (nick: string) =>
+  `${nick.toLowerCase().replace(/[^a-z0-9]+/g, "-")}@e2e.example`;
+
+const knownE2EAccounts = new Set<string>();
+
+async function waitForAuthResult(page: Page): Promise<"joined" | "error"> {
+  return Promise.race([
+    page.locator(".lobby").waitFor().then(() => "joined" as const),
+    page.locator("#auth-error").waitFor().then(() => "error" as const),
+  ]);
+}
+
+async function loginWithEmail(page: Page, email: string, password: string) {
+  await page.goto(SERVER_URL + "/");
+  await page.getByLabel("邮箱").fill(email);
+  await page.getByLabel("个人密码").fill(password);
+  await page.getByLabel("房间密码").fill("1234");
+  await page.getByRole("button", { name: "登录并进入房间" }).click();
+  return waitForAuthResult(page);
+}
+
+export async function join(page: Page, nick: string, accountPassword = E2E_ACCOUNT_PASSWORD) {
   // Absolute URL on purpose: helpers drive pages from manually created
   // browser.newContext() contexts, which do not inherit the config baseURL
   // (same trap as viewport — see setupTwoPlayersInPlacing).
-  await page.goto(SERVER_URL + "/");
-  const input = page.getByLabel("昵称");
-  await expect(input).toBeEnabled();
-  await input.fill(nick);
+  const email = accountEmailFor(nick);
+
+  if (accountPassword !== E2E_ACCOUNT_PASSWORD) {
+    await loginWithEmail(page, email, accountPassword);
+    return;
+  }
+
+  if (knownE2EAccounts.has(email)) {
+    await loginWithEmail(page, email, accountPassword);
+    return;
+  }
+
+  await page.goto(SERVER_URL + "/account/register");
+  await expect(page.getByLabel("邮箱")).toBeEnabled();
+  await page.getByLabel("邮箱").fill(email);
+  await page.getByLabel("个人密码", { exact: true }).fill(accountPassword);
+  await page.getByLabel("确认密码").fill(accountPassword);
+  await page.getByLabel("游戏昵称").fill(nick);
   await page.getByLabel("房间密码").fill("1234");
-  await page.getByRole("button", { name: "进入房间" }).click();
+  await page.getByRole("button", { name: "创建账号并进入大厅" }).click();
+
+  const registrationResult = await waitForAuthResult(page);
+  if (registrationResult === "joined") {
+    knownE2EAccounts.add(email);
+    return;
+  }
+  const error = await page.locator("#auth-error").textContent();
+  // The store may report either unique field first; for this helper both are
+  // deterministically derived from the same nick, so either means the E2E
+  // account already exists and should use the explicit login path.
+  if (!error?.includes("该邮箱已注册") && !error?.includes("该昵称不可用")) return;
+
+  knownE2EAccounts.add(email);
+  await page.getByRole("link", { name: "登录", exact: true }).click();
+  await page.getByRole("button", { name: "登录并进入房间" }).click();
+  await waitForAuthResult(page);
 }
 
 export async function ready(page: Page) {

@@ -1,6 +1,6 @@
 # ADR-0002：使用 TypeScript 领域编排与双 Provider 模型路由
 
-- 状态：Accepted
+- 状态：Accepted；唯一 `TeamStrategy` 条款已由 [ADR-0004](0004-agent-memory-scopes-and-seat-strategy.md) 修订为每座位 `SeatStrategy`
 - 日期：2026-07-13
 
 ## 决策

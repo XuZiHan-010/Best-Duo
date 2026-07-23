@@ -10,10 +10,11 @@ test.beforeEach(resetRoom);
 test("Result renders the failure screen (not stuck loading) when a turn times out", async ({ browser }) => {
   const { pageA, pageB } = await setupTwoPlayersInPlacing(browser);
 
-  // Neither player acts — let the turn timer (default thinkSeconds = 5s)
+  // Neither player acts — let the turn timer (default thinkSeconds = 10s)
   // expire and fail the round via failByTimeout.
-  await expect(pageA.locator(".result")).toBeVisible({ timeout: 10_000 });
-  await expect(pageB.locator(".result")).toBeVisible({ timeout: 10_000 });
+  // Leave room for the server timer, Socket.IO delivery, and React render.
+  await expect(pageA.locator(".result")).toBeVisible({ timeout: 15_000 });
+  await expect(pageB.locator(".result")).toBeVisible({ timeout: 15_000 });
 
   await expect(pageA.locator(".view-stub")).toHaveCount(0);
   await expect(pageA.getByText("挑战失败")).toBeVisible();

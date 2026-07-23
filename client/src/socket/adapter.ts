@@ -1,5 +1,17 @@
 import {
   ClientEvents,
+  type AccountLoginPayload,
+  type AccountProfileUpdatePayload,
+  type AccountPasswordChangePayload,
+  type AccountEmailChangePayload,
+  type AdminAccountsListPayload,
+  type AdminAccountTargetPayload,
+  type AdminAccountSetStatusPayload,
+  type AdminEnterRoomPayload,
+  type AccountRegisterPayload,
+  type AdminKickPlayerPayload,
+  type AdminLoginPayload,
+  type AdminSeizeRoomPayload,
   type CardPlacePayload,
   type ChatSendPayload,
   type HintDecidePayload,
@@ -11,6 +23,24 @@ import {
 import { socket } from "./client.js";
 
 export const adapter = {
+  accountRegister(payload: AccountRegisterPayload) {
+    socket.emit(ClientEvents.AccountRegister, payload);
+  },
+  accountLogin(payload: AccountLoginPayload) {
+    socket.emit(ClientEvents.AccountLogin, payload);
+  },
+  accountProfileUpdate(payload: AccountProfileUpdatePayload) {
+    socket.emit(ClientEvents.AccountProfileUpdate, payload);
+  },
+  accountPasswordChange(payload: AccountPasswordChangePayload) {
+    socket.emit(ClientEvents.AccountPasswordChange, payload);
+  },
+  accountEmailChange(payload: AccountEmailChangePayload) {
+    socket.emit(ClientEvents.AccountEmailChange, payload);
+  },
+  accountSessionsRevokeOthers() {
+    socket.emit(ClientEvents.AccountSessionsRevokeOthers, {});
+  },
   join(payload: PlayerJoinPayload) {
     socket.emit(ClientEvents.PlayerJoin, payload);
   },
@@ -61,5 +91,32 @@ export const adapter = {
   },
   syncRoom() {
     socket.emit(ClientEvents.RoomSync);
+  },
+  adminLogin(payload: AdminLoginPayload) {
+    socket.emit(ClientEvents.AdminLogin, payload);
+  },
+  adminEnterRoom(payload: AdminEnterRoomPayload = {}) {
+    socket.emit(ClientEvents.AdminEnterRoom, payload);
+  },
+  adminSeizeRoom(payload: AdminSeizeRoomPayload) {
+    socket.emit(ClientEvents.AdminSeizeRoom, payload);
+  },
+  adminKickPlayer(payload: AdminKickPlayerPayload) {
+    socket.emit(ClientEvents.AdminKickPlayer, payload);
+  },
+  adminAccountsList(payload: AdminAccountsListPayload = {}) {
+    socket.emit(ClientEvents.AdminAccountsList, payload);
+  },
+  adminAccountsForceLogout(payload: AdminAccountTargetPayload) {
+    socket.emit(ClientEvents.AdminAccountsForceLogout, payload);
+  },
+  adminAccountsSetStatus(payload: AdminAccountSetStatusPayload) {
+    socket.emit(ClientEvents.AdminAccountsSetStatus, payload);
+  },
+  adminAccountsSoftDelete(payload: AdminAccountTargetPayload) {
+    socket.emit(ClientEvents.AdminAccountsSoftDelete, payload);
+  },
+  adminLogout() {
+    socket.emit(ClientEvents.AdminLogout);
   },
 };

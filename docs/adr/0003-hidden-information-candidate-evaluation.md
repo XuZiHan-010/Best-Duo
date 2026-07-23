@@ -21,3 +21,10 @@ Agent 候选决策分为三层：生成合法动作、排除从可见信息即�
 - `candidateGenerator` / `candidateEvaluator` 的公开输入必须是遮蔽视图，而不是 `GameRoom`。
 - 第一版先做安全剪枝和启发式排序，信念采样作为后续增强。
 - 若采样求解消耗明显 CPU，应放入 Worker Thread，避免阻塞 Socket.IO 事件循环。
+
+## 2026-07-22 实施补充
+
+- `evaluatePossibleWorlds` 只接收遮蔽后的 `TurnView`、显式 seed 和时间预算；运行时同时拒绝含 `hands` / `deck` 的对象。
+- 采样从固定 24 张牌池无放回生成与公开颜色、已知数值、座位剩余手数一致的可能世界；真实 `GameRoom` 不进入 API。
+- `canCompleteSampledDeal` 只求解采样世界，并接受 `deadlineMs` 以避免单次搜索突破事件循环预算。
+- 冻结评测显示采样相对确定性候选有正增益，但整个候选路径仍未超过 safePolicy 发布门槛，因此采样默认关闭。
